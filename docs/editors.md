@@ -1,0 +1,30 @@
+# 編集エンジン
+
+## 共通
+
+- EDITOR-001: 編集エンジンは `builtin` と `neovim` を定義する。
+- EDITOR-002: 編集エンジンは表示状態とは独立して管理する。
+- EDITOR-003: 編集中に `builtin` と `neovim` を切り替えられる。
+- EDITOR-004: 編集エンジンを切り替えても現在の編集内容を失わない。
+- EDITOR-005: 設定画面の編集エンジン選択は編集開始時の初期値とする。
+- EDITOR-006: 現在利用中の編集エンジンをUIから判別できる。
+
+## builtin
+
+- EDITOR-BUILTIN-001: `builtin` はHatoNote内でMarkdown本文を編集する。
+- EDITOR-BUILTIN-002: `builtin` はUndoとRedoを利用できる。
+- EDITOR-BUILTIN-003: Undoできない場合はUndo操作を無効表示する。
+- EDITOR-BUILTIN-004: Redoできない場合はRedo操作を無効表示する。
+- EDITOR-BUILTIN-005: `builtin` のスクロール位置をプレビューと同期できる。
+
+## neovim
+
+- EDITOR-NVIM-001: `neovim` はユーザー指定または自動検出したNeovimを使用する。
+- EDITOR-NVIM-002: Windows側でNeovimを検出できない場合はWSLの既定ディストリビューションを探索できる。
+- EDITOR-NVIM-003: WSLでは既定ユーザーのPATHを探索対象とする。
+- EDITOR-NVIM-004: Neovim実行ファイルを設定画面から明示指定できる。
+- EDITOR-NVIM-005: `init.lua` を設定画面から明示指定できる。
+- EDITOR-NVIM-006: `init.lua` を指定しないフォールバックとして `--clean` を利用できる。
+- EDITOR-NVIM-007: 指定したNeovim実行ファイルの存在状態を設定画面に表示する。
+- EDITOR-NVIM-008: 指定した `init.lua` の存在状態を設定画面に表示する。
+- EDITOR-NVIM-009: Neovimの表示位置をプレビューと同期できる。
