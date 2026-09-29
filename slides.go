@@ -420,22 +420,26 @@ func slideTitle(text string) string {
 	return "取り込んだスライド"
 }
 
-// RenderSlide は安全なMarkdown描画をレイアウト間で共有します。
-func (a *App) RenderSlide(text, layout string) (string, error) {
+func renderSlideMarkdown(text, layout string) (string, error) {
 	if len(text) > bundle.MaxFile {
 		return "", fmt.Errorf("本文が大きすぎます")
 	}
 	if layout != "columns" {
-		return a.Render(text)
+		return renderMarkdown(text)
 	}
 	parts := splitSlideMarkdown(text, "<!-- column -->")
-	left, err := a.Render(parts[0])
+	left, err := renderMarkdown(parts[0])
 	if err != nil {
 		return "", err
 	}
 	right := ""
 	if len(parts) > 1 {
-		right, err = a.Render(strings.Join(parts[1:], "\n"))
+		right, err = renderMarkdown(strings.Join(parts[1:], "\n"))
 	}
 	return `<div class="slide-columns"><div>` + left + `</div><div>` + right + `</div></div>`, err
+}
+
+// RenderSlide は安全なMarkdown描画をレイアウト間で共有します。
+func (a *App) RenderSlide(text, layout string) (string, error) {
+	return renderSlideMarkdown(text, layout)
 }
