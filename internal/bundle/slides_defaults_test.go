@@ -20,3 +20,20 @@ func TestNewSlideDeckDefaults(t *testing.T) {
 		t.Fatalf("unexpected page number defaults: %+v", deck)
 	}
 }
+
+
+func TestSlideDeckRejectsSharedMarkdownFile(t *testing.T) {
+	deck := SlideDeck{
+		Version: 1,
+		Title:   "資料",
+		Theme:   "light",
+		Aspect:  "16:9",
+		Slides: []Slide{
+			{ID: "slide-001", File: "slides/page.md", Title: "1", Layout: "standard", FontSize: 20},
+			{ID: "slide-002", File: "slides/page.md", Title: "2", Layout: "standard", FontSize: 20},
+		},
+	}
+	if err := deck.Validate(map[string][]byte{"slides/page.md": []byte("# page\n")}); err == nil {
+		t.Fatal("multiple slides sharing one Markdown file were accepted")
+	}
+}
