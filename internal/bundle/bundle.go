@@ -100,7 +100,7 @@ func Read(filename string) (*Document, error) {
 	if len(z.File) > MaxEntries {
 		return nil, fmt.Errorf("ファイル数が上限を超えています")
 	}
-	d := &Document{Files: map[string][]byte{}, Manifest: map[string]json.RawMessage{}, ManifestMode: ManifestModeDocument}
+	d := &Document{Files: map[string][]byte{}, Manifest: map[string]json.RawMessage{}}
 	total := 0
 	seen := map[string]bool{}
 	for _, f := range z.File {
@@ -146,7 +146,7 @@ func FromFiles(files map[string][]byte) (*Document, error) {
 			return nil, fmt.Errorf("不正なファイル: %s", name)
 		}
 	}
-	return resolve(&Document{Files: files, Manifest: map[string]json.RawMessage{}, ManifestMode: ManifestModeDocument})
+	return resolve(&Document{Files: files, Manifest: map[string]json.RawMessage{}})
 }
 
 func resolve(d *Document) (*Document, error) {
