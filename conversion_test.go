@@ -13,7 +13,7 @@ import (
 func sampleConversionDocument(t *testing.T) *bundle.Document {
 	t.Helper()
 	files := map[string][]byte{
-		"manifest.json":   []byte(`{"mode":"project","entryPoint":"docs/first.md","x-HatoNote-pageOrder":["docs/first.md","second.md"]}`),
+		"manifest.json":   []byte(`{"mode":"project","entryPoint":"docs/first.md","x-hatonote-pageOrder":["docs/first.md","second.md"]}`),
 		"docs/first.md":   []byte("# First\n\n![画像](../images/test.png)\n\n---\n\n# First 2\n"),
 		"second.md":       []byte("# Second\n"),
 		"images/test.png": {1, 2, 3},
@@ -31,8 +31,8 @@ func TestDocumentSlideConversionRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if slides.Mode != "slides" {
-		t.Fatalf("mode = %q", slides.Mode)
+	if slides.ManifestMode != bundle.ManifestModeSlides {
+		t.Fatalf("manifest mode = %q", slides.ManifestMode)
 	}
 	deck, err := slides.Deck()
 	if err != nil {
@@ -45,7 +45,7 @@ func TestDocumentSlideConversionRoundTrip(t *testing.T) {
 		t.Fatalf("relative directory was not preserved: %+v", deck.Slides)
 	}
 	meta, body, ok := normalSlideSourceFromText(string(slides.Files[deck.Slides[1].File]))
-	if !ok || meta.File != "docs/first.md" || meta.Page != 1 || meta.Part != 2 || meta.Parts != 2 || meta.Mode != "project" || !meta.Entry {
+	if !ok || meta.File != "docs/first.md" || meta.Page != 1 || meta.Part != 2 || meta.Parts != 2 || !meta.Entry {
 		t.Fatalf("source metadata = %+v, ok=%v", meta, ok)
 	}
 	if body != "# First 2\n" {
@@ -56,8 +56,8 @@ func TestDocumentSlideConversionRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if restored.Mode != "project" || restored.Entry != "docs/first.md" {
-		t.Fatalf("restored mode/entry = %q / %q", restored.Mode, restored.Entry)
+	if restored.ManifestMode != bundle.ManifestModeDocument || restored.Entry != "docs/first.md" {
+		t.Fatalf("restored manifest mode/entry = %q / %q", restored.ManifestMode, restored.Entry)
 	}
 	pages := restored.Pages()
 	if len(pages) != 2 || pages[0] != "docs/first.md" || pages[1] != "second.md" {
@@ -165,15 +165,15 @@ func TestDuplicateConvertedSlideBecomesNewNormalPage(t *testing.T) {
 	}
 }
 
-func TestNormalSlideSourceParserAcceptsLegacyHeader(t *testing.T) {
-	text := "<!-- mdz-gui:normal-source {\"version\":1,\"file\":\"docs/page.md\",\"page\":1,\"part\":1,\"parts\":1,\"mode\":\"document\"} -->\n\n# Body\n"
-	meta, body, ok := normalSlideSourceFromText(text)
-	if !ok { t.Fatal("legacy metadata was rejected"); }
-	if meta.File != "docs/page.md" || body != "# Body\n" { t.Fatalf("legacy metadata = %+v, body = %q", meta, body); }
+func TestNormalSlideSourceParserRejectsForeignHeader(t *testing.T) {
+	text := "<!-- mdz-gui:normal-source {\"version\":1,\"file\":\"docs/page.md\",\"page\":1,\"part\":1,\"parts\":1} -->\n\n# Body\n"
+	if _, body, ok := normalSlideSourceFromText(text); ok || body != text {
+		t.Fatal("foreign metadata was accepted")
+	}
 }
 
 func TestNormalSlideSourceParserRejectsInvalidHeader(t *testing.T) {
-	text := "<!-- HatoNote:normal-source {\"version\":1,\"file\":\"../bad.md\",\"page\":1,\"part\":1,\"parts\":1,\"mode\":\"document\"} -->\n\n# Body\n"
+	text := "<!-- HatoNote:normal-source {\"version\":1,\"file\":\"../bad.md\",\"page\":1,\"part\":1,\"parts\":1} -->\n\n# Body\n"
 	if _, body, ok := normalSlideSourceFromText(text); ok || body != text {
 		t.Fatal("invalid metadata was accepted")
 	}
