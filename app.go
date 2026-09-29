@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -571,6 +572,66 @@ func (a *App) History() ([]workspace.HistoryEntry, error) {
 		return []workspace.HistoryEntry{}, nil
 	}
 	return workspace.History(a.base, a.session.Filename)
+}
+
+type HistoryPageDiff struct {
+	Page    string `json:"page"`
+	Status  string `json:"status"`
+	History string `json:"history"`
+	Current string `json:"current"`
+}
+
+// HistoryDiff は指定履歴と現在のMarkdown本文をページ単位で比較します。
+func (a *App) HistoryDiff(id string) ([]HistoryPageDiff, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.session == nil || a.session.Filename == "" {
+		return nil, fmt.Errorf("保存済み文書を開いてください")
+	}
+	if err := a.syncNativeLocked(); err != nil {
+		return nil, err
+	}
+	if err := a.session.Capture(); err != nil {
+		return nil, err
+	}
+	historyDoc, err := workspace.LoadHistory(a.base, a.session.Filename, id)
+	if err != nil {
+		return nil, err
+	}
+	names := map[string]bool{}
+	for name := range a.session.Doc.Files {
+		if bundle.IsMarkdown(name) {
+			names[name] = true
+		}
+	}
+	for name := range historyDoc.Files {
+		if bundle.IsMarkdown(name) {
+			names[name] = true
+		}
+	}
+	ordered := make([]string, 0, len(names))
+	for name := range names {
+		ordered = append(ordered, name)
+	}
+	sort.Strings(ordered)
+	result := make([]HistoryPageDiff, 0, len(ordered))
+	for _, name := range ordered {
+		current, currentOK := a.session.Doc.Files[name]
+		history, historyOK := historyDoc.Files[name]
+		status := ""
+		switch {
+		case currentOK && !historyOK:
+			status = "added"
+		case !currentOK && historyOK:
+			status = "deleted"
+		case currentOK && historyOK && !bytes.Equal(current, history):
+			status = "modified"
+		default:
+			continue
+		}
+		result = append(result, HistoryPageDiff{Page:name, Status:status, History:string(history), Current:string(current)})
+	}
+	return result, nil
 }
 
 // CreateNamedVersion は現在の作業状態を通常保存とは別の名前付き世代へ保存します。
