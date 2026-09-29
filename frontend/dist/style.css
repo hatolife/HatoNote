@@ -297,7 +297,7 @@ body.app-dialog-open dialog[open]{position:fixed;z-index:4001;left:50%;top:calc(
 /* スライドWYSIWYGは960px基準のスライドを編集領域に合わせて等比縮小します。 */
 #wysiwyg.slide-editor{background:var(--wysiwyg-margin-color,#fff)}
 #wysiwyg.slide-editor #wysiwyg-stage{overflow:auto;align-items:flex-start;justify-content:center;padding:16px;background:var(--wysiwyg-margin-color,#fff)}
-#wysiwyg.slide-editor #wysiwyg-content{flex:none;box-sizing:border-box;overflow:visible;margin:auto;box-shadow:0 0 0 1px #000,0 8px 28px #0002;line-height:1.55;letter-spacing:normal;caret-color:currentColor}
+#wysiwyg.slide-editor #wysiwyg-content{position:relative;flex:none;box-sizing:border-box;overflow:visible;margin:auto;box-shadow:0 0 0 1px #000,0 8px 28px #0002;line-height:1.55;letter-spacing:normal;caret-color:currentColor}
 #wysiwyg.slide-editor #wysiwyg-content[data-theme=dark]{color:#e9eff8}
 #wysiwyg.slide-editor #wysiwyg-content[data-theme=light]{color:#202b3e}
 #wysiwyg.slide-editor #wysiwyg-content h1,
