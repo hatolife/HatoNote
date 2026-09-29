@@ -19,7 +19,7 @@ interface Backend {
 	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>;
 	StartPresentation(slides:Array<Slide & {html:string}>,index:number):Promise<PresentationState>; PresentationState():Promise<PresentationState>; PresentationCommand(command:string,index:number):Promise<void>;StopPresentation():Promise<void>;
 	Slides(): Promise<SlidesInfo>; PrepareSlides(): Promise<SlidesInfo>; ChangeSlide(revision: string, id: string, operation: string, value: string): Promise<SlidesInfo>; ConfigureSlides(revision: string, deck: SlideDeck): Promise<SlidesInfo>; RenderSlide(text: string, layout: string): Promise<string>;
-	ConvertDocumentMode(target: string): Promise<void>;
+	ConvertDocumentType(target: string): Promise<void>;
 	Contents(): Promise<BookContents>; ChangeContents(revision: string, index: number, operation: string, value: string): Promise<BookContents>;
 	RenameBook(revision: string, title: string): Promise<void>; GetBookConfiguration(): Promise<{text: string; revision: string}>; SaveBookConfiguration(revision: string, text: string): Promise<void>;
 	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
@@ -873,7 +873,7 @@ dialog.addEventListener('close', () => {
 	if(name && !name.endsWith('/') && !name.split('/').pop()!.includes('.')) name += '.md';
 	void action(async () => { await flush(); await api.AddPage(name); await selectPage(name); status('ページを追加しました'); });
 });
-async function convertDocumentMode(target: 'slides' | 'document'): Promise<void> {
+async function convertDocumentType(target: 'slides' | 'mdz'): Promise<void> {
 	if (!editing) return;
 	const toSlides = target === 'slides';
 	const message = toSlides
@@ -882,13 +882,13 @@ async function convertDocumentMode(target: 'slides' | 'document'): Promise<void>
 	if (!confirm(message)) return;
 	await action(async () => {
 		await flush();
-		await api.ConvertDocumentMode(target);
+		await api.ConvertDocumentType(target);
 		await reload(true);
 		status(toSlides ? 'スライドモードへ変換しました。保存すると確定します。' : '通常MDZへ変換しました。保存すると確定します。');
 	});
 }
-element('document-to-slides').onclick = () => void convertDocumentMode('slides');
-element('slides-to-document').onclick = () => void convertDocumentMode('document');
+element('document-to-slides').onclick = () => void convertDocumentType('slides');
+element('slides-to-document').onclick = () => void convertDocumentType('mdz');
 window.addEventListener('keydown', event => {
 	if (!(event.ctrlKey || event.metaKey)) return;
 	if (event.key.toLowerCase() === 's') { event.preventDefault(); void save(event.shiftKey); }
