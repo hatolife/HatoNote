@@ -46,4 +46,10 @@ func TestCapabilities(t *testing.T) {
 	if !Slides.Capabilities().Presentation {
 		t.Fatal("slides must support presentation")
 	}
+	if !Markdown.Capabilities().WYSIWYGEditor || !MDZ.Capabilities().WYSIWYGEditor {
+		t.Fatal("Markdown and MDZ must support WYSIWYG")
+	}
+	if MdBook.Capabilities().WYSIWYGEditor || Slides.Capabilities().WYSIWYGEditor {
+		t.Fatal("mdBook and slides must not support WYSIWYG yet")
+	}
 }
