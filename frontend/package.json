@@ -7,7 +7,8 @@
 		"check": "tsc --noEmit",
 		"test:ui": "node tests/integration.ts",
 		"test:slides": "node tests/slides.ts",
-		"test:layout": "node tests/layout.ts"
+		"test:layout": "node tests/layout.ts",
+		"test:commands": "node tests/commands.ts"
 	},
 	"devDependencies": {
 		"jszip": "^3.10.1",
