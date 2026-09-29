@@ -37,6 +37,7 @@ try {
 	assert(await page.evaluate(()=>Math.abs(window.sidebarBefore-document.querySelector('#sidebar').scrollTop)<2));
 	await page.locator('.slide-card').first().click();await ready();
 	assert.equal(await page.locator('#editing').getAttribute('aria-checked'),'true');
+	assert.equal(await page.locator('#editor-engine [data-engine=wysiwyg]').isVisible(),false);
 	const originalSlideIDs=(await rpc('Slides')).deck.slides.map(s=>s.id);
 	await page.locator('.slide-card').nth(1).hover();await page.mouse.down();
 	const insertionTarget=await page.locator('.slide-card').first().boundingBox();
