@@ -80,6 +80,7 @@ const nativeInput = element<HTMLTextAreaElement>('native-input');
 const preview = element<HTMLIFrameElement>('preview');
 const editorEngine = element<HTMLElement>('editor-engine');
 const wysiwygRoot = element<HTMLElement>('wysiwyg');
+const wysiwygStage = element<HTMLElement>('wysiwyg-stage');
 const wysiwygContent = element<HTMLElement>('wysiwyg-content');
 const wysiwygToolbar = element<HTMLElement>('wysiwyg-toolbar');
 const wysiwygBlock = element<HTMLSelectElement>('wysiwyg-block');
@@ -130,6 +131,10 @@ let slideTypographyPending: Promise<void> = Promise.resolve();
 const slideFrame = element<HTMLIFrameElement>('slide-preview');
 const presentationFrame = element<HTMLIFrameElement>('presentation-frame');
 const framePayloads = new Map<HTMLIFrameElement, Record<string, unknown>>();
+const wysiwygStageObserver = new ResizeObserver(() => {
+	if (documentIs('slides') && activeEngine === 'wysiwyg') applyWysiwygSlideStyle();
+});
+wysiwygStageObserver.observe(wysiwygStage);
 const wysiwyg = new WysiwygEditor(wysiwygRoot, wysiwygContent, wysiwygToolbar, wysiwygBlock, {
 	onChange: (before, after, kind) => {
 		editor.value = after;
@@ -474,12 +479,20 @@ function initialEditorEngine(): EditorEngine {
 }
 async function loadWysiwyg(): Promise<boolean> {
 	if (!supportsWysiwyg()) return false;
-	const html = await api.Render(editor.value);
+	let renderMarkdown = (text: string): Promise<string> => api.Render(text);
+	if (documentIs('slides')) {
+		if (!slidesInfo) slidesInfo = await api.Slides();
+		const slide = selectedSlide();
+		if (!slide) return false;
+		renderMarkdown = (text: string): Promise<string> => api.RenderSlide(text, slide.layout);
+	}
+	const html = await renderMarkdown(editor.value);
 	if (renderedHTMLHasOmittedRawHTML(html)) return false;
 	const normalized = markdownFromRenderedHTML(html);
-	const rerendered = await api.Render(normalized);
+	const rerendered = await renderMarkdown(normalized);
 	if (!equivalentRenderedHTML(html, rerendered)) return false;
 	wysiwyg.load(editor.value, html);
+	applyWysiwygSlideStyle();
 	return true;
 }
 function applyEditor(): void {
@@ -496,6 +509,7 @@ function applyEditor(): void {
 	editor.hidden = isNative || isWysiwyg;
 	wysiwyg.setActive(isWysiwyg);
 	wysiwyg.setEditable(isWysiwyg && editing && !busy);
+	applyWysiwygSlideStyle();
 	native.setActive(isNative && editing); native.configure(cfg.fontFamily, cfg.fontSize);
 	editor.style.fontFamily = cfg.fontFamily; editor.style.fontSize = `${cfg.fontSize}px`;
 	element('editor-caption').textContent = isNative ? 'NEOVIM' : isWysiwyg ? 'WYSIWYG' : 'MARKDOWN';
@@ -1573,6 +1587,46 @@ element<HTMLFormElement>('book-title-form').onsubmit = event => {
 
 // スライドの構成と本文を分離し、編集・発表で同じ描画を使います。
 function selectedSlide(): Slide | undefined { return slidesInfo?.deck.slides.find(s=>s.file===current); }
+function applyWysiwygSlideStyle(): void {
+	const enabled = documentIs('slides') && activeEngine === 'wysiwyg' && !!slidesInfo && !!selectedSlide();
+	wysiwygRoot.classList.toggle('slide-editor', enabled);
+	if (!enabled || !slidesInfo) {
+		wysiwygRoot.style.removeProperty('--wysiwyg-margin-color');
+		wysiwygContent.removeAttribute('data-theme');
+		wysiwygContent.removeAttribute('data-layout');
+		for (const property of ['width','height','padding','font-family','font-size','background-color','color','--wysiwyg-h1','--wysiwyg-h2','--wysiwyg-h3','--wysiwyg-h4','--wysiwyg-h5','--wysiwyg-cover-h1','--wysiwyg-image-max-height','--wysiwyg-image-margin','--wysiwyg-pre-padding','--wysiwyg-column-gap']) wysiwygContent.style.removeProperty(property);
+		return;
+	}
+	const slide = selectedSlide()!;
+	const deck = slidesInfo.deck;
+	const logicalWidth = 960;
+	const logicalHeight = deck.aspect === '4:3' ? 720 : 540;
+	const availableWidth = Math.max(0, wysiwygStage.clientWidth - 32);
+	const availableHeight = Math.max(0, wysiwygStage.clientHeight - 32);
+	let scale = Math.min(1, availableWidth / logicalWidth, availableHeight / logicalHeight);
+	if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+	scale = Math.max(.2, scale);
+	const typography = slideTypographyValues(deck, slide);
+	const px = (value: number): string => `${value * scale}px`;
+	const background = /^#[0-9a-f]{6}$/i.test(slide.background || '') ? slide.background : deck.theme === 'dark' ? '#182333' : '#ffffff';
+	wysiwygRoot.style.setProperty('--wysiwyg-margin-color', /^#[0-9a-f]{6}$/i.test(deck.marginColor || '') ? deck.marginColor! : '#ffffff');
+	wysiwygContent.dataset.theme = deck.theme;
+	wysiwygContent.dataset.layout = slide.layout;
+	wysiwygContent.style.width = px(logicalWidth);
+	wysiwygContent.style.height = px(logicalHeight);
+	wysiwygContent.style.padding = `${px(typography.marginY)} ${px(typography.marginX)}`;
+	wysiwygContent.style.fontFamily = slideFontStack(typography.fontFamily);
+	wysiwygContent.style.fontSize = px(typography.body);
+	wysiwygContent.style.backgroundColor = background;
+	wysiwygContent.style.color = deck.theme === 'dark' ? '#e9eff8' : '#202b3e';
+	for (const level of [1,2,3,4,5] as const) wysiwygContent.style.setProperty(`--wysiwyg-h${level}`, px(typography[`h${level}`]));
+	const coverH1 = deck.h1FontSize || typography.body * 2;
+	wysiwygContent.style.setProperty('--wysiwyg-cover-h1', px(coverH1));
+	wysiwygContent.style.setProperty('--wysiwyg-image-max-height', px(340));
+	wysiwygContent.style.setProperty('--wysiwyg-image-margin', px(16));
+	wysiwygContent.style.setProperty('--wysiwyg-pre-padding', px(20));
+	wysiwygContent.style.setProperty('--wysiwyg-column-gap', px(40));
+}
 interface SlideTypographyValues { fontFamily: string; marginX: number; marginY: number; body: number; h1: number; h2: number; h3: number; h4: number; h5: number }
 function slideFontStack(value?: string): string {
 	switch(value) {
@@ -1742,6 +1796,7 @@ function updateSlideTypography(): void {
 	slideTypographyDesired=deck;
 	slideTypographyGeneration++;
 	slidesInfo={...slidesInfo,deck};
+	applyWysiwygSlideStyle();
 	void renderSlidePreview();
 	window.clearTimeout(slideTypographyTimer);
 	slideTypographyTimer=window.setTimeout(()=>void flushSlideTypography(),180);
@@ -1764,6 +1819,7 @@ async function flushSlideTypography(force=false): Promise<void> {
 			if(slideTypographyGeneration===generation)slidesInfo=saved;
 			else slidesInfo={...saved,deck:slidesInfo.deck};
 			state=await api.State();
+			applyWysiwygSlideStyle();
 			refreshTitle();
 			slideListKey='';
 			renderSlideList(element('pages'));
@@ -1806,6 +1862,11 @@ element('slides-settings-form').onsubmit=event=>{
 		await flush();
 		try {slidesInfo=await api.ConfigureSlides(slideSettings!.revision,deck);}
 		catch(error){element('slides-settings-error').textContent=String(error);throw error;}
+		if (activeEngine === 'wysiwyg' && !(await loadWysiwyg())) {
+			activeEngine = 'builtin';
+			applyEditor();
+			status('変更後のスライドをWYSIWYGで安全に編集できないためMarkdownエディターへ切り替えました', true);
+		}
 		element<HTMLDialogElement>('slides-settings-dialog').close();await refreshSidebar();await render();status('スライドの設定を更新しました');
 	});
 };
