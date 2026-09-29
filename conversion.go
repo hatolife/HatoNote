@@ -348,10 +348,14 @@ func normalSlideSourceFromText(text string) (normalSlideSource, string, bool) {
 	}
 	for i := 0; i < limit; i++ {
 		line := strings.TrimSpace(lines[i])
-		if !strings.HasPrefix(line, normalSlideSourcePrefix) || !strings.HasSuffix(line, normalSlideSourceSuffix) {
+		prefix := normalSlideSourcePrefix
+		if !strings.HasPrefix(line, prefix) {
+			prefix = legacyNormalSlideSourcePrefix
+		}
+		if !strings.HasPrefix(line, prefix) || !strings.HasSuffix(line, normalSlideSourceSuffix) {
 			continue
 		}
-		raw := strings.TrimSuffix(strings.TrimPrefix(line, normalSlideSourcePrefix), normalSlideSourceSuffix)
+		raw := strings.TrimSuffix(strings.TrimPrefix(line, prefix), normalSlideSourceSuffix)
 		if json.Unmarshal([]byte(raw), &meta) != nil ||
 			meta.Version != 1 ||
 			!bundle.ValidPath(meta.File) ||
