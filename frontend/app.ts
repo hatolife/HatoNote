@@ -1594,7 +1594,9 @@ function applyWysiwygSlideStyle(): void {
 		wysiwygRoot.style.removeProperty('--wysiwyg-margin-color');
 		wysiwygContent.removeAttribute('data-theme');
 		wysiwygContent.removeAttribute('data-layout');
-		for (const property of ['width','height','padding','font-family','font-size','background-color','color','--wysiwyg-h1','--wysiwyg-h2','--wysiwyg-h3','--wysiwyg-h4','--wysiwyg-h5','--wysiwyg-cover-h1','--wysiwyg-image-max-height','--wysiwyg-image-margin','--wysiwyg-pre-padding','--wysiwyg-column-gap']) wysiwygContent.style.removeProperty(property);
+		wysiwygContent.removeAttribute('data-page-number');
+		wysiwygContent.removeAttribute('data-page-number-position');
+		for (const property of ['width','height','padding','font-family','font-size','background-color','color','--wysiwyg-h1','--wysiwyg-h2','--wysiwyg-h3','--wysiwyg-h4','--wysiwyg-h5','--wysiwyg-cover-h1','--wysiwyg-image-max-height','--wysiwyg-image-margin','--wysiwyg-pre-padding','--wysiwyg-column-gap','--wysiwyg-page-number-size','--wysiwyg-page-number-x','--wysiwyg-page-number-y']) wysiwygContent.style.removeProperty(property);
 		return;
 	}
 	const slide = selectedSlide()!;
@@ -1626,6 +1628,18 @@ function applyWysiwygSlideStyle(): void {
 	wysiwygContent.style.setProperty('--wysiwyg-image-margin', px(16));
 	wysiwygContent.style.setProperty('--wysiwyg-pre-padding', px(20));
 	wysiwygContent.style.setProperty('--wysiwyg-column-gap', px(40));
+	wysiwygContent.style.setProperty('--wysiwyg-page-number-size', px(14));
+	wysiwygContent.style.setProperty('--wysiwyg-page-number-x', px(24));
+	wysiwygContent.style.setProperty('--wysiwyg-page-number-y', px(18));
+	const pageIndex = Math.max(0, deck.slides.findIndex(item => item.id === slide.id));
+	if (deck.pageNumberEnabled && !slide.hidePageNumber) {
+		const start = Number.isInteger(deck.pageNumberStart) ? deck.pageNumberStart! : 1;
+		wysiwygContent.dataset.pageNumber = String(start + pageIndex);
+		wysiwygContent.dataset.pageNumberPosition = deck.pageNumberPosition || 'bottom-right';
+	} else {
+		wysiwygContent.removeAttribute('data-page-number');
+		wysiwygContent.removeAttribute('data-page-number-position');
+	}
 }
 interface SlideTypographyValues { fontFamily: string; marginX: number; marginY: number; body: number; h1: number; h2: number; h3: number; h4: number; h5: number }
 function slideFontStack(value?: string): string {
