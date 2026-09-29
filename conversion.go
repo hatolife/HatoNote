@@ -165,7 +165,8 @@ func normalDocumentToSlides(doc *bundle.Document) (*bundle.Document, error) {
 	files["slides.json"] = data
 
 	manifest := conversionManifest(doc)
-	delete(manifest, "x-HatoNote-pageOrder")
+	delete(manifest, bundle.PageOrderKey)
+	delete(manifest, bundle.LegacyPageOrderKey)
 	manifest["mode"], _ = json.Marshal("slides")
 	manifest["entryPoint"], _ = json.Marshal(deck.Slides[0].File)
 	meta, err := json.MarshalIndent(manifest, "", "\t")
@@ -216,7 +217,7 @@ func slideDocumentToNormal(doc *bundle.Document) (*bundle.Document, error) {
 		manifest := conversionManifest(doc)
 		manifest["mode"], _ = json.Marshal("document")
 		manifest["entryPoint"], _ = json.Marshal(page)
-		manifest["x-HatoNote-pageOrder"], _ = json.Marshal([]string{page})
+		manifest[bundle.PageOrderKey], _ = json.Marshal([]string{page})
 		meta, err := json.MarshalIndent(manifest, "", "\t")
 		if err != nil {
 			return nil, err
@@ -270,7 +271,7 @@ func slideDocumentToNormal(doc *bundle.Document) (*bundle.Document, error) {
 	manifest := conversionManifest(doc)
 	manifest["mode"], _ = json.Marshal(originalMode)
 	manifest["entryPoint"], _ = json.Marshal(entry)
-	manifest["x-HatoNote-pageOrder"], _ = json.Marshal(pageOrder)
+	manifest[bundle.PageOrderKey], _ = json.Marshal(pageOrder)
 	meta, err := json.MarshalIndent(manifest, "", "\t")
 	if err != nil {
 		return nil, err
