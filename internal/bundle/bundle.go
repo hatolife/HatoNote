@@ -40,7 +40,7 @@ type Document struct {
 
 // New は新規文書を作成します。
 func New() *Document {
-	return &Document{Files: map[string][]byte{"index.md": []byte("# 新しい文書\n\nここから書き始めます。\n")}, Manifest: map[string]json.RawMessage{}, Entry: "index.md"}
+	return &Document{Files: map[string][]byte{}, Manifest: map[string]json.RawMessage{}}
 }
 
 // ValidPath はZIP内のパスをOSに依存せず検査します。
