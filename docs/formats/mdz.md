@@ -26,11 +26,9 @@
 - FORMAT-MDZ-032: 新規通常MDZの最初のページにHatoNoteで編集できることを示す短い案内を含める。
 - FORMAT-MDZ-033: 新規通常MDZは作成直後に編集を開始できる。
 
+## ページ順メタデータ
 
-## 互換性
-
-- FORMAT-MDZ-040: 旧mdz-guiが保存した `x-mdz-gui-pageOrder` をページ順情報として読み取れる。
-- FORMAT-MDZ-041: HatoNoteが新しく保存するページ順情報には `x-hatonote-pageOrder` を使用する。
-- FORMAT-MDZ-042: 旧ページ順キーを読み込んだ文書を保存する場合はHatoNoteのページ順キーへ移行できる。
-
-- FORMAT-MDZ-043: HatoNote形式へ更新する場合は旧キーを新規生成しない。
+- FORMAT-MDZ-040: ページ順メタデータキーは `x-hatonote-pageOrder` とする。
+- FORMAT-MDZ-041: ページ順を保存する場合は `x-hatonote-pageOrder` を使用する。
+- FORMAT-MDZ-042: HatoNoteは旧製品固有のページ順キーを読み書きしない。
+- FORMAT-MDZ-043: ページ順キーの別名を定義しない。
