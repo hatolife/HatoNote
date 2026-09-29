@@ -257,7 +257,11 @@ func TestSlideValidationAndExternalEdit(t *testing.T) {
 		t.Fatal("external edit was lost")
 	}
 	files := map[string][]byte{"manifest.json": []byte(`{"mode":"slides","entryPoint":"index.md"}`), "index.md": []byte("# x")}
-	if _, err = bundle.FromFiles(files); err == nil {
-		t.Fatal("missing deck accepted")
+	plain, err := bundle.FromFiles(files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.HasSlides() || plain.ManifestMode() != bundle.ManifestModeDocument {
+		t.Fatal("manifest mode was treated as independent document state")
 	}
 }
