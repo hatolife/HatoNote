@@ -3,20 +3,16 @@ package main
 import (
 	"fmt"
 	"slices"
+
+	"github.com/hatolife/HatoNote/internal/document"
 )
 
 // MovePage は並べ替え前の順序を確認し、ファイル名を変えずにページを移動します。
 func (a *App) MovePage(expected []string, name, target string, after bool) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.session == nil || a.session.Doc.Mode == "slides" {
-		return fmt.Errorf("通常の文書を開いてください")
-	}
-	if a.singleMarkdownLocked() {
-		return fmt.Errorf("単一Markdownではページを並べ替えられません")
-	}
-	if _, ok := a.session.Doc.Files["book.toml"]; ok {
-		return fmt.Errorf("mdBookは目次で並べ替えてください")
+	if a.session == nil || a.documentTypeLocked() != document.MDZ {
+		return fmt.Errorf("通常MDZを開いてください")
 	}
 	if err := a.syncNativeLocked(); err != nil {
 		return err
