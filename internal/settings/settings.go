@@ -43,7 +43,7 @@ func (s Settings) Validate() error {
 	default:
 		return fmt.Errorf("アクセント色が不正です")
 	}
-	if s.Editor != "neovim" && s.Editor != "builtin" {
+	if s.Editor != "neovim" && s.Editor != "builtin" && s.Editor != "wysiwyg" {
 		return fmt.Errorf("編集方式が不正です")
 	}
 	if s.InitMode != "clean" && s.InitMode != "custom" {
