@@ -212,7 +212,8 @@ func (s *Session) SetPageOrder(order []string) error {
 	if err := json.Unmarshal(s.Doc.Files["manifest.json"], &manifest); err != nil {
 		return err
 	}
-	manifest["x-HatoNote-pageOrder"], _ = json.Marshal(order)
+	manifest[bundle.PageOrderKey], _ = json.Marshal(order)
+	delete(manifest, bundle.LegacyPageOrderKey)
 	data, err := json.MarshalIndent(manifest, "", "\t")
 	if err != nil {
 		return err
