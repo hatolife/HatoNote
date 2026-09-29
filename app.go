@@ -65,9 +65,11 @@ type Snapshot struct {
 	Filename       string   `json:"filename"`
 	Entry          string   `json:"entry"`
 	Pages          []string `json:"pages"`
-	Assets         []string `json:"assets"`
-	Mode           string   `json:"mode"`
-	SingleMarkdown bool     `json:"singleMarkdown"`
+	Assets         []string             `json:"assets"`
+	DocumentType   DocumentType         `json:"documentType"`
+	Capabilities   DocumentCapabilities `json:"capabilities"`
+	Mode           string               `json:"mode"`
+	SingleMarkdown bool                 `json:"singleMarkdown"`
 	Dirty          bool     `json:"dirty"`
 	ID             string   `json:"id"`
 	WorkDir        string   `json:"workDir"`
@@ -97,8 +99,13 @@ func (a *App) emit(event string, data any) {
 func (a *App) Initial() string { return a.initial }
 func (a *App) Version() string { return version }
 
+func (a *App) documentTypeLocked() DocumentType {
+	if a.session == nil { return ""; }
+	return DetectDocumentType(a.session.Filename, a.session.Doc)
+}
+
 func (a *App) singleMarkdownLocked() bool {
-	return a.session != nil && bundle.IsMarkdown(a.session.Filename)
+	return a.documentTypeLocked() == DocumentTypeMarkdown
 }
 
 func (a *App) State() Snapshot {
@@ -107,7 +114,8 @@ func (a *App) State() Snapshot {
 	if a.session == nil {
 		return Snapshot{Pages: []string{}, Assets: []string{}, Engine: "builtin"}
 	}
-	s := Snapshot{Filename: a.session.Filename, Entry: a.session.Doc.Entry, Pages: a.session.Doc.Pages(), Assets: []string{}, Mode: a.session.Doc.Mode, SingleMarkdown: a.singleMarkdownLocked(), Dirty: a.session.Dirty || a.pending.Load(), ID: a.session.ID, WorkDir: a.session.Content(), Engine: "builtin", NativeError: a.nativeError}
+	documentType := a.documentTypeLocked()
+	s := Snapshot{Filename: a.session.Filename, Entry: a.session.Doc.Entry, Pages: a.session.Doc.Pages(), Assets: []string{}, DocumentType: documentType, Capabilities: documentType.Capabilities(), Mode: a.session.Doc.Mode, SingleMarkdown: documentType == DocumentTypeMarkdown, Dirty: a.session.Dirty || a.pending.Load(), ID: a.session.ID, WorkDir: a.session.Content(), Engine: "builtin", NativeError: a.nativeError}
 	if a.native != nil {
 		s.Engine = "neovim"
 	}
@@ -376,7 +384,7 @@ func (a *App) AddPage(name string) error {
 	if a.singleMarkdownLocked() {
 		return fmt.Errorf("単一Markdownではページを追加できません。MDZとして保存してから追加してください")
 	}
-	if a.session.Doc.Mode == "slides" {
+	if a.documentTypeLocked() == DocumentTypeSlides {
 		return fmt.Errorf("スライドを追加してください")
 	}
 	// 拡張子を省略したページ名には.mdを補います。
