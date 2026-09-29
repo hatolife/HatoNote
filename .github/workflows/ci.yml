@@ -42,5 +42,8 @@ jobs:
           npm ci --prefix frontend
           npm run build --prefix frontend
 
+      - name: Test frontend commands
+        run: npm run test:commands --prefix frontend
+
       - name: Test Go
         run: go test ./... -timeout 120s
