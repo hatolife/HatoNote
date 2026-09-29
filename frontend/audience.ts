@@ -1,4 +1,4 @@
-interface AudienceState {id:string;slides?:unknown[];theme:string;aspect:string;marginColor:string;index:number;fullscreen:boolean;closed:boolean}
+interface AudienceState {id:string;slides?:unknown[];theme:string;aspect:string;marginColor:string;pageNumberEnabled:boolean;pageNumberPosition:string;pageNumberStart:number;index:number;fullscreen:boolean;closed:boolean}
 interface AudienceAPI {Poll(withSlides:boolean):Promise<AudienceState>;Control(command:string,index:number):Promise<void>;Close():void;Fullscreen(active:boolean):void}
 const api=(window as unknown as {go:{main:{AudienceWindow:AudienceAPI}}}).go.main.AudienceWindow;
 const frame=document.getElementById('audience-frame') as HTMLIFrameElement;
