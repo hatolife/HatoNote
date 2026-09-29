@@ -46,7 +46,7 @@ func TestEmptyStartupAndBookTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.ManifestMode != bundle.ManifestModeProject || d.Entry != "src/introduction.md" {
+	if d.ManifestMode() != bundle.ManifestModeProject || d.Entry != "src/introduction.md" {
 		t.Fatal(d)
 	}
 	d.Files["book.toml"] = []byte("[book]\nsrc='../outside'\n")
