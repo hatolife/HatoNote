@@ -23,8 +23,11 @@ type SlideDeck struct {
 	H2FontSize   int     `json:"h2FontSize,omitempty"`
 	H3FontSize   int     `json:"h3FontSize,omitempty"`
 	H4FontSize   int     `json:"h4FontSize,omitempty"`
-	H5FontSize   int     `json:"h5FontSize,omitempty"`
-	Slides       []Slide `json:"slides"`
+	H5FontSize          int     `json:"h5FontSize,omitempty"`
+	PageNumberEnabled   bool    `json:"pageNumberEnabled,omitempty"`
+	PageNumberPosition  string  `json:"pageNumberPosition,omitempty"`
+	PageNumberStart     int     `json:"pageNumberStart"`
+	Slides              []Slide `json:"slides"`
 }
 
 type Slide struct {
@@ -34,7 +37,8 @@ type Slide struct {
 	Layout     string `json:"layout"`
 	Background string `json:"background,omitempty"`
 	FontSize   int    `json:"fontSize"`
-	Notes      string `json:"notes,omitempty"`
+	Notes          string `json:"notes,omitempty"`
+	HidePageNumber bool   `json:"hidePageNumber,omitempty"`
 }
 
 // NewSlideDeck は新規作成・変換で共通利用する資料全体の既定値を返します。
@@ -52,7 +56,9 @@ func NewSlideDeck(title string) SlideDeck {
 		H2FontSize:   28,
 		H3FontSize:   26,
 		H4FontSize:   24,
-		H5FontSize:   22,
+		H5FontSize:         22,
+		PageNumberPosition: "bottom-right",
+		PageNumberStart:    1,
 	}
 }
 
@@ -87,6 +93,16 @@ func (d SlideDeck) Validate(files map[string][]byte) error {
 	}
 	if d.MarginColor != "" && !slideColor.MatchString(d.MarginColor) {
 		return fmt.Errorf("余白の色は#RRGGBB形式で指定してください")
+	}
+	if d.PageNumberPosition != "" {
+		switch d.PageNumberPosition {
+		case "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right":
+		default:
+			return fmt.Errorf("ページ番号の位置が不正です")
+		}
+	}
+	if d.PageNumberStart < -9999 || d.PageNumberStart > 999999 {
+		return fmt.Errorf("ページ番号の開始番号は-9999〜999999で指定してください")
 	}
 	if d.ContentMarginX != 0 && (d.ContentMarginX < 8 || d.ContentMarginX > 180) {
 		return fmt.Errorf("左右余白は8〜180pxで指定してください")
