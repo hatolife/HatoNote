@@ -29,7 +29,7 @@ type Document struct {
 	Files    map[string][]byte
 	Manifest map[string]json.RawMessage
 	Entry    string
-	Mode     string
+	Mode     string // MDZipのmanifest.mode。HatoNoteの文書種別判定にはDocumentTypeを使用する。
 }
 
 // New は新規文書を作成します。
