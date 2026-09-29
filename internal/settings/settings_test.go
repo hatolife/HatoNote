@@ -13,6 +13,20 @@ func TestLimitsAndDefaults(t *testing.T) {
 	if Default().InitMode != "custom" {
 		t.Fatalf("default init mode = %q", Default().InitMode)
 	}
+	for _, editor := range []string{"builtin", "wysiwyg", "neovim"} {
+		s := Default()
+		s.Editor = editor
+		if err := s.Validate(); err != nil {
+			t.Fatalf("editor %q rejected: %v", editor, err)
+		}
+	}
+	{
+		s := Default()
+		s.Editor = "unknown"
+		if err := s.Validate(); err == nil {
+			t.Fatal("unknown editor accepted")
+		}
+	}
 	for _, n := range []int{0, -1, 10001} {
 		s := Default()
 		s.UndoLevels = n
