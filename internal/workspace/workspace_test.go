@@ -130,3 +130,92 @@ func TestPortablePathsAndSymlinks(t *testing.T) {
 		t.Fatal("symlink accepted")
 	}
 }
+
+
+func TestHistoryAndNamedVersions(t *testing.T) {
+	base := t.TempDir()
+	cfg := settings.Default()
+	cfg.BackupGenerations = 5
+	session, err := New(base, testDocument(), "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	filename := filepath.Join(t.TempDir(), "history.mdz")
+	if err := session.Save(base, filename, "test", cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Put("index.md", []byte("saved second")); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Save(base, filename, "test", cfg); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := History(base, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Kind != "backup" {
+		t.Fatalf("automatic history = %+v", entries)
+	}
+	if err := session.Put("index.md", []byte("named unsaved")); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	named, err := session.SaveNamedVersion(base, "test", "確認用")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if named.Kind != "named" || named.Name != "確認用" || !strings.HasPrefix(named.ID, "named/") {
+		t.Fatalf("named history = %+v", named)
+	}
+	after, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("named version changed the saved document")
+	}
+	if !session.Dirty {
+		t.Fatal("named version unexpectedly cleared dirty state")
+	}
+	entries, err = History(base, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 || entries[0].Kind != "named" {
+		t.Fatalf("history = %+v", entries)
+	}
+	restored, err := LoadHistory(base, filename, named.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(restored.Files["index.md"]) != "named unsaved" {
+		t.Fatalf("restored named version = %q", restored.Files["index.md"])
+	}
+	backupDoc, err := LoadHistory(base, filename, entries[1].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(backupDoc.Files["index.md"]) != "# Test\n" {
+		t.Fatalf("restored automatic backup = %q", backupDoc.Files["index.md"])
+	}
+}
+
+func TestNamedVersionRequiresSavedDocumentAndName(t *testing.T) {
+	session, err := New(t.TempDir(), testDocument(), "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	if _, err := session.SaveNamedVersion(t.TempDir(), "test", "name"); err == nil {
+		t.Fatal("unsaved document accepted a named version")
+	}
+	session.Filename = filepath.Join(t.TempDir(), "saved.mdz")
+	if _, err := session.SaveNamedVersion(t.TempDir(), "test", "   "); err == nil {
+		t.Fatal("empty name accepted")
+	}
+}
