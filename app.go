@@ -10,6 +10,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -87,6 +88,9 @@ type NativeState struct {
 func (a *App) emit(event string, data any) {
 	if event == "native-changed" {
 		a.pending.Store(true)
+	}
+	if event == "app-error" {
+		log.Printf("app-error: %v", data)
 	}
 	if a.notify != nil {
 		a.notify(event, data)
@@ -571,6 +575,7 @@ func (a *App) StartNative() bool {
 	e, err := editor.Start(a.session.Content(), filepath.Join(a.session.Root, "undo"), a.cfg, a.emit)
 	if err != nil {
 		a.nativeError = "Neovimを起動できないため内蔵エディターを使用します。設定から実行ファイルを指定してください: " + err.Error()
+		log.Printf("%s", a.nativeError)
 		return false
 	}
 	a.native = e
@@ -598,6 +603,7 @@ func (a *App) syncNativeLocked() error {
 		a.native.Close()
 		a.native = nil
 		a.nativeError = "Neovimが停止したため、最後に書き込まれた作業ファイルを内蔵エディターで開きます。"
+		log.Printf("%s: %v", a.nativeError, err)
 		_ = a.session.Capture()
 		return fmt.Errorf("Neovimの作業内容を保存できません: %w", err)
 	}
@@ -643,6 +649,7 @@ func (a *App) fallbackNativeLocked(reason error) error {
 	if preserveErr != nil {
 		a.nativeError += "。作業内容の退避にも失敗しました: " + preserveErr.Error()
 	}
+	log.Printf("%s", a.nativeError)
 	return fmt.Errorf("%s", a.nativeError)
 }
 
