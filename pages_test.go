@@ -79,7 +79,7 @@ func TestDocumentPageOrderAndNames(t *testing.T) {
 	}
 	// 外部追加のページは失わず末尾へ補い、消えた参照と重複は除外します。
 	reopened.Files["aaa.md"] = []byte("# 追加")
-	reopened.Manifest["x-HatoNote-pageOrder"] = json.RawMessage(`["日本語.md","missing.md","日本語.md","index.md","zeta.md","chapters/alpha.md"]`)
+	reopened.Manifest[bundle.PageOrderKey] = json.RawMessage(`["日本語.md","missing.md","日本語.md","index.md","zeta.md","chapters/alpha.md"]`)
 	if !slices.Equal(reopened.Pages(), []string{"日本語.md", "index.md", "zeta.md", "chapters/alpha.md", "aaa.md"}) {
 		t.Fatal(reopened.Pages())
 	}
