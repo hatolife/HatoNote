@@ -22,19 +22,26 @@ const MaxTotal = 128 << 20
 const MaxEntries = 4096
 
 const PageOrderKey = "x-hatonote-pageOrder"
-const LegacyPageOrderKey = "x-mdz-gui-pageOrder"
+
+type ManifestMode string
+
+const (
+	ManifestModeDocument ManifestMode = "document"
+	ManifestModeProject  ManifestMode = "project"
+	ManifestModeSlides   ManifestMode = "slides"
+)
 
 // Document は未知の添付ファイルとmanifestのフィールドも保持します。
 type Document struct {
 	Files    map[string][]byte
 	Manifest map[string]json.RawMessage
 	Entry    string
-	Mode     string // MDZipのmanifest.mode。HatoNoteの文書種別判定にはDocumentTypeを使用する。
+	ManifestMode ManifestMode
 }
 
 // New は新規文書を作成します。
 func New() *Document {
-	return &Document{Files: map[string][]byte{"index.md": []byte("# 新しい文書\n\nここから書き始めます。\n")}, Manifest: map[string]json.RawMessage{}, Entry: "index.md", Mode: "document"}
+	return &Document{Files: map[string][]byte{"index.md": []byte("# 新しい文書\n\nここから書き始めます。\n")}, Manifest: map[string]json.RawMessage{}, Entry: "index.md", ManifestMode: ManifestModeDocument}
 }
 
 // ValidPath はZIP内のパスをOSに依存せず検査します。
@@ -60,6 +67,16 @@ func IsMarkdown(name string) bool {
 	return ext == ".md" || ext == ".markdown"
 }
 
+
+// HasSlides はHatoNoteのスライド構造を持つかを返します。
+func (d *Document) HasSlides() bool {
+	if d == nil {
+		return false
+	}
+	_, ok := d.Files["slides.json"]
+	return ok
+}
+
 // Read は展開先を作らずに読み込み、件数と実際の展開サイズを制限します。
 func Read(filename string) (*Document, error) {
 	z, err := zip.OpenReader(filename)
@@ -70,7 +87,7 @@ func Read(filename string) (*Document, error) {
 	if len(z.File) > MaxEntries {
 		return nil, fmt.Errorf("ファイル数が上限を超えています")
 	}
-	d := &Document{Files: map[string][]byte{}, Manifest: map[string]json.RawMessage{}, Mode: "document"}
+	d := &Document{Files: map[string][]byte{}, Manifest: map[string]json.RawMessage{}, ManifestMode: ManifestModeDocument}
 	total := 0
 	seen := map[string]bool{}
 	for _, f := range z.File {
@@ -116,7 +133,7 @@ func FromFiles(files map[string][]byte) (*Document, error) {
 			return nil, fmt.Errorf("不正なファイル: %s", name)
 		}
 	}
-	return resolve(&Document{Files: files, Manifest: map[string]json.RawMessage{}, Mode: "document"})
+	return resolve(&Document{Files: files, Manifest: map[string]json.RawMessage{}, ManifestMode: ManifestModeDocument})
 }
 
 func resolve(d *Document) (*Document, error) {
@@ -125,7 +142,7 @@ func resolve(d *Document) (*Document, error) {
 			return nil, fmt.Errorf("manifest.jsonが不正です")
 		}
 		if v, ok := d.Manifest["mode"]; ok {
-			if err := json.Unmarshal(v, &d.Mode); err != nil || (d.Mode != "document" && d.Mode != "project" && d.Mode != "slides") {
+			if err := json.Unmarshal(v, &d.ManifestMode); err != nil || (d.ManifestMode != ManifestModeDocument && d.ManifestMode != ManifestModeProject && d.ManifestMode != ManifestModeSlides) {
 				return nil, fmt.Errorf("ERR_MODE_UNSUPPORTED")
 			}
 		}
@@ -168,7 +185,7 @@ func resolve(d *Document) (*Document, error) {
 			d.Entry = roots[0]
 		}
 	}
-	if d.Mode == "slides" {
+	if d.HasSlides() {
 		deck, err := d.Deck()
 		if err != nil {
 			return nil, err
@@ -203,7 +220,7 @@ func (d *Document) Put(name string, data []byte) error {
 }
 
 func (d *Document) Pages() []string {
-	if d.Mode == "slides" {
+	if d.ManifestMode == "slides" {
 		deck, err := d.Deck()
 		if err != nil {
 			return []string{}
@@ -224,9 +241,6 @@ func (d *Document) Pages() []string {
 	// 独自の表示順を優先し、外部で追加されたページは末尾へ補います。
 	var order []string
 	rawOrder := d.Manifest[PageOrderKey]
-	if len(rawOrder) == 0 {
-		rawOrder = d.Manifest[LegacyPageOrderKey]
-	}
 	if json.Unmarshal(rawOrder, &order) == nil {
 		remaining := make(map[string]bool, len(names))
 		for _, name := range names {
@@ -258,7 +272,7 @@ func (d *Document) Write(filename, version string) error {
 	set := func(k string, v any) { manifest[k], _ = json.Marshal(v) }
 	set("spec", map[string]string{"name": "mdzip-spec", "version": "1.1.0"})
 	set("entryPoint", d.Entry)
-	set("mode", d.Mode)
+	set("mode", d.ManifestMode)
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if _, ok := manifest["created"]; !ok {
 		set("created", map[string]string{"when": now})
