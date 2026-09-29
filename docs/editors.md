@@ -26,6 +26,9 @@
 - EDITOR-WYSIWYG-005: `wysiwyg` で安全に往復変換できないMarkdownを検出した場合は、元のMarkdown本文を変更せず `builtin` で編集できる状態を維持する。
 - EDITOR-WYSIWYG-006: `wysiwyg` のスクロール位置をプレビューと同期できる。
 - EDITOR-WYSIWYG-007: `wysiwyg` の画像追加は文書種別の画像格納能力に従う。
+- EDITOR-WYSIWYG-008: スライド文書の `wysiwyg` は現在スライドのレイアウト、余白、フォント、文字サイズ、背景色を編集表示へ反映する。
+- EDITOR-WYSIWYG-009: スライド文書の `wysiwyg` は自由配置編集を提供せず、Markdown本文を正規データとして維持する。
+- EDITOR-WYSIWYG-010: `columns` レイアウトのWYSIWYG編集では列区切り `<!-- column -->` を失わない。
 
 ## neovim
 
