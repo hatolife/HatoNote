@@ -103,9 +103,16 @@ function serializeTable(table: HTMLTableElement): string {
 	return output.join('\n') + '\n\n';
 }
 
+function serializeSlideColumns(node: HTMLElement): string {
+	const columns = Array.from(node.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+	if (!columns.length) return '';
+	return columns.map(column => trimBlock(Array.from(column.childNodes).map(serializeBlock).join(''))).join('\n\n<!-- column -->\n\n') + '\n\n';
+}
+
 function serializeBlock(node: Node): string {
 	if (node.nodeType === Node.TEXT_NODE) return (node.textContent || '').trim() ? escapeText(node.textContent || '') : '';
 	if (!(node instanceof HTMLElement)) return '';
+	if (node.tagName === 'DIV' && node.classList.contains('slide-columns')) return serializeSlideColumns(node);
 	switch (node.tagName) {
 	case 'H1':
 	case 'H2':
