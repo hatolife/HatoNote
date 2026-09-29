@@ -11,6 +11,25 @@ import (
 	"github.com/hatolife/HatoNote/internal/settings"
 )
 
+func TestBlockingError(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		state healthState
+		want  string
+	}{
+		{"normal", healthState{Mode: "n", Blocking: false, Error: "old error"}, ""},
+		{"prompt without error", healthState{Mode: "r", Blocking: true}, ""},
+		{"hit enter error", healthState{Mode: "r", Blocking: true, Error: " E5108: failed "}, "E5108: failed"},
+		{"more error", healthState{Mode: "rm", Blocking: true, Error: "plugin failed"}, "plugin failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := blockingError(tc.state); got != tc.want {
+				t.Fatalf("got=%q want=%q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNativeEditingUndoAndWrite(t *testing.T) {
 	binary := os.Getenv("MDZ_NVIM_TEST")
 	if binary == "" {
