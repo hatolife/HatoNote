@@ -288,3 +288,120 @@ body.app-dialog-open dialog[open]{position:fixed;z-index:4001;left:50%;top:calc(
 #wysiwyg-content input[type=checkbox]{margin-right:7px}
 #editor-engine button[data-engine=wysiwyg]{min-width:76px}
 [contenteditable]{--wails-draggable:no-drag}
+
+
+/* HatoNote productivity UI */
+#titlebar-path {
+	min-width: 0;
+	max-width: min(70vw, 980px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--muted);
+	font-size: 10px;
+}
+footer #status { flex: 1; }
+#count { display: inline !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+#settings-dialog {
+	position: fixed;
+	inset: 34px 0 0 56px;
+	width: auto;
+	max-width: none;
+	height: auto;
+	max-height: none;
+	margin: 0;
+	padding: 26px 32px 30px;
+	border: 0;
+	border-radius: 0;
+	overflow: auto;
+	background: var(--bg);
+	box-shadow: none;
+	z-index: 1800;
+}
+#settings-dialog::backdrop { background: transparent; }
+#settings-form {
+	max-width: 1180px;
+	margin: 0 auto;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+	align-items: start;
+}
+#settings-form > h2,
+#settings-form > #settings-error,
+#settings-form > .dialog-actions,
+#settings-form > .settings-about {
+	grid-column: 1 / -1;
+}
+#settings-form > h2 {
+	margin: 0 0 4px;
+	font-size: 24px;
+}
+#settings-form fieldset {
+	margin: 0;
+	padding: 18px;
+	background: var(--paper);
+}
+#settings-form .dialog-actions {
+	position: sticky;
+	bottom: -30px;
+	margin-top: 0;
+	padding: 16px 0 0;
+	background: linear-gradient(to bottom, transparent, var(--bg) 28%);
+}
+.settings-version-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 18px;
+	font-size: 12px;
+}
+#settings-version {
+	font-family: Consolas, monospace;
+	color: var(--muted);
+	user-select: text;
+}
+
+#markdown-cheatsheet-dialog {
+	width: min(720px, calc(100vw - 48px));
+	max-height: min(760px, calc(100vh - 72px));
+	overflow: auto;
+}
+.cheatsheet-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px 18px;
+	margin-top: 18px;
+}
+.cheatsheet-grid > div {
+	display: grid;
+	grid-template-columns: minmax(120px, 1fr) minmax(80px, .7fr);
+	align-items: baseline;
+	gap: 12px;
+	padding: 9px 10px;
+	border-bottom: 1px solid var(--line);
+}
+.cheatsheet-grid code {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--text);
+}
+.cheatsheet-grid span {
+	color: var(--muted);
+	font-size: 12px;
+}
+#markdown-cheatsheet {
+	--wails-draggable: no-drag;
+	font-size: 11px;
+}
+
+@media(max-width: 850px) {
+	#settings-form { grid-template-columns: 1fr; }
+	#settings-form > fieldset { grid-column: 1; }
+	#settings-form > h2,
+	#settings-form > #settings-error,
+	#settings-form > .dialog-actions,
+	#settings-form > .settings-about { grid-column: 1; }
+	.cheatsheet-grid { grid-template-columns: 1fr; }
+}
