@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/hatolife/HatoNote/internal/bundle"
+	"github.com/hatolife/HatoNote/internal/document"
 	"github.com/hatolife/HatoNote/internal/workspace"
 )
 
@@ -37,8 +38,9 @@ func (a *App) ImportMarkdownFiles(filenames []string, target string, after bool)
 	if a.session == nil {
 		return nil, fmt.Errorf("文書を開いてください")
 	}
-	if a.singleMarkdownLocked() {
-		return nil, fmt.Errorf("単一Markdownにはページを追加できません")
+	documentType := a.documentTypeLocked()
+	if !documentType.Capabilities().MultiplePages {
+		return nil, fmt.Errorf("この文書種別にはページを追加できません")
 	}
 	if err := a.syncNativeLocked(); err != nil {
 		return nil, err
@@ -47,14 +49,10 @@ func (a *App) ImportMarkdownFiles(filenames []string, target string, after bool)
 		return nil, err
 	}
 
-	if a.session.Doc.Mode == "slides" {
+	if documentType == document.Slides {
 		return a.importSlidesLocked(items, target, after)
 	}
-	src, err := detectBook(a.session.Doc)
-	if err != nil {
-		return nil, err
-	}
-	if src != "" {
+	if documentType == document.MdBook {
 		return a.importBookMarkdownLocked(items, target, after)
 	}
 	return a.importDocumentMarkdownLocked(items, target, after)
