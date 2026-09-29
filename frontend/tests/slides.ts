@@ -76,7 +76,10 @@ try {
 		await page.locator('#slides-settings').click();
 		await page.locator('#deck-title').waitFor({state:'visible'});
 	} finally { resumeCheckpoint(); }
-	await page.locator('#deck-title').fill('技術発表');await page.locator('#slide-title').fill('調査結果');await page.locator('#slide-layout').selectOption('standard');await page.locator('#slide-notes').fill('画面には見せないメモ');await page.locator('#deck-margin').fill('#f0f0f0');await page.locator('#slides-settings-save').click();await ready();
+	await page.locator('#deck-title').fill('技術発表');await page.locator('#slide-title').fill('調査結果');await page.locator('#slide-layout').selectOption('standard');await page.locator('#slide-notes').fill('画面には見せないメモ');await page.locator('#deck-margin').fill('#f0f0f0');await page.locator('#deck-page-number-enabled').check();await page.locator('#deck-page-number-start').fill('5');await page.locator('#deck-page-number-position').selectOption('bottom-center');await page.locator('#slides-settings-save').click();await ready();
+	await slide.locator('.slide-page-number').waitFor();assert.equal(await slide.locator('.slide-page-number').textContent(),'5');assert.equal(await slide.locator('.slide-page-number').getAttribute('data-position'),'bottom-center');
+	await page.locator('#slides-settings').click();await page.locator('#slide-hide-page-number').check();await page.locator('#slides-settings-save').click();await ready();assert.equal(await slide.locator('.slide-page-number').count(),0);
+	await page.locator('#slides-settings').click();await page.locator('#slide-hide-page-number').uncheck();await page.locator('#slides-settings-save').click();await ready();await slide.locator('.slide-page-number').waitFor();assert.equal(await slide.locator('.slide-page-number').textContent(),'5');
 	assert.equal(await page.locator('#slide-typography-apply').count(),0);
 	await page.locator('#slide-font-family').selectOption('mincho');await page.locator('#slide-margin-x').fill('44');await page.locator('#slide-margin-y').fill('36');await page.locator('#slide-body-size').fill('28');await page.locator('#slide-h1-size').fill('50');await page.locator('#slide-h2-size').fill('44');await page.locator('#slide-h3-size').fill('40');await page.locator('#slide-h4-size').fill('36');await page.locator('#slide-h5-size').fill('32');
 	await page.waitForFunction(()=>{const section=document.querySelector('#slide-preview').contentDocument.querySelector('section');const h1=section?.querySelector('h1');return section&&getComputedStyle(section).paddingLeft==='44px'&&getComputedStyle(section).paddingTop==='36px'&&getComputedStyle(section).fontSize==='28px'&&h1&&getComputedStyle(h1).fontSize==='50px';});
@@ -138,7 +141,7 @@ try {
 	await page.locator('#editing').click();await ready();assert.equal(await page.locator('#editing').getAttribute('aria-checked'),'true');
 	const info=await (await fetch(url+'/test-info')).json();const zip=await JSZip.loadAsync(fs.readFileSync(info.saved));
 	assert.equal(JSON.parse(await zip.file('manifest.json').async('string')).mode,'slides');
-	const deck=JSON.parse(await zip.file('slides.json').async('string'));assert.equal(deck.title,'技術発表');assert((await zip.file(deck.slides[0].file).async('string')).includes('保存中の追記'));assert.equal(deck.slides.length,12);assert(Object.keys(zip.files).some(n=>n.endsWith('.png')));
+	const deck=JSON.parse(await zip.file('slides.json').async('string'));assert.equal(deck.title,'技術発表');assert.equal(deck.pageNumberEnabled,true);assert.equal(deck.pageNumberStart,5);assert.equal(deck.pageNumberPosition,'bottom-center');assert((await zip.file(deck.slides[0].file).async('string')).includes('保存中の追記'));assert.equal(deck.slides.length,12);assert(Object.keys(zip.files).some(n=>n.endsWith('.png')));
 	await page.locator('#slides-start').click();await ready();
 	await page.frameLocator('#presentation-frame').locator('section.present h1').filter({hasText:'調査結果'}).waitFor();
 	assert.equal(await page.frameLocator('#presentation-frame').getByText('画面には見せないメモ').count(),0);
