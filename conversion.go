@@ -38,8 +38,8 @@ type restoredNormalPage struct {
 	file    string
 }
 
-// ConvertDocumentMode は通常MDZとスライドMDZを、復元情報を保ちながら相互変換します。
-func (a *App) ConvertDocumentMode(target string) error {
+// ConvertDocumentType は通常MDZとスライドMDZを、復元情報を保ちながら相互変換します。
+func (a *App) ConvertDocumentType(target string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.session == nil {
@@ -62,13 +62,13 @@ func (a *App) ConvertDocumentMode(target string) error {
 			return fmt.Errorf("mdBookはスライドへ直接変換できません")
 		}
 		doc, err = normalDocumentToSlides(a.session.Doc)
-	case "document":
+	case "mdz":
 		if a.documentTypeLocked() != document.Slides {
 			return nil
 		}
 		doc, err = slideDocumentToNormal(a.session.Doc)
 	default:
-		return fmt.Errorf("変換先のモードが不正です")
+		return fmt.Errorf("変換先の文書種別が不正です")
 	}
 	if err != nil {
 		return err
