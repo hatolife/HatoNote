@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/hatolife/HatoNote/internal/logring"
 	"github.com/hatolife/HatoNote/internal/settings"
 )
 
@@ -50,6 +52,15 @@ func run(args Args) error {
 		return err
 	}
 	base := filepath.Join(cache, "HatoNote")
+	previousLogOutput := log.Writer()
+	if ring, logErr := logring.Open(filepath.Join(base, "HatoNote.log"), 512*1024); logErr != nil {
+		log.Printf("診断ログを開けません: %v", logErr)
+	} else {
+		defer ring.Close()
+		log.SetOutput(io.MultiWriter(previousLogOutput, ring))
+		defer log.SetOutput(previousLogOutput)
+	}
+	log.Printf("HatoNote %s start", version)
 	cfg, err := settings.Load(filepath.Join(base, "settings.json"))
 	if err != nil {
 		return fmt.Errorf("設定を読み込めません: %w", err)
