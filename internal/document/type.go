@@ -47,7 +47,7 @@ func (t Type) Capabilities() Capabilities {
 	case MdBook:
 		return Capabilities{MultiplePages: true, EmbeddedAssets: true, MdBookPreview: true, ExternalEditor: true}
 	case Slides:
-		return Capabilities{MultiplePages: true, EmbeddedAssets: true, Presentation: true, ExternalEditor: true}
+		return Capabilities{MultiplePages: true, EmbeddedAssets: true, Presentation: true, ExternalEditor: true, WYSIWYGEditor: true}
 	default:
 		return Capabilities{}
 	}
