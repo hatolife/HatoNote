@@ -930,7 +930,11 @@ for (const target of [editor, nativeInput, wysiwygContent]) target.addEventListe
 		return;
 	}
 	if (image) { event.preventDefault(); void action(() => clipboardImage(image)); return; }
-	if (target === nativeInput) { event.preventDefault(); const text = event.clipboardData?.getData('text/plain') || ''; enqueueNative(() => api.NativePaste(text)); }
+	if (target === nativeInput) { event.preventDefault(); const text = event.clipboardData?.getData('text/plain') || ''; enqueueNative(() => api.NativePaste(text)); return; }
+	if (target === wysiwygContent) {
+		event.preventDefault();
+		document.execCommand('insertText', false, event.clipboardData?.getData('text/plain') || '');
+	}
 });
 for (const layout of ['editor','split','preview'] as PaneLayout[]) element(paneButton[layout]).onclick = () => {
 	paneLayout = layout;
