@@ -50,7 +50,8 @@ async function verifyDraggable(selector: string, expected: 'drag' | 'no-drag') {
 async function verifyBounds() {
 	assert.equal(await page.locator('#titlebar').count(), 1);
 	assert(await page.locator('#titlebar').isVisible());
-	assert((await page.locator('#app-version').textContent())?.trim().length);
+	assert.equal(await page.locator('#app-version').count(), 0);
+	assert.equal(await page.locator('#titlebar-path').count(), 1);
 	assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 	for (const id of ['new', 'open', 'settings', 'window-minimise', 'window-maximise', 'window-close', 'editing']) {
 		const control = page.locator('#' + id);
