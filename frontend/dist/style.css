@@ -405,3 +405,88 @@ footer #status { flex: 1; }
 	#settings-form > .settings-about { grid-column: 1; }
 	.cheatsheet-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Document search and recent documents */
+#recent-documents {
+	width: min(680px, 88vw);
+	padding: 16px;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: var(--bg);
+	--wails-draggable: no-drag;
+}
+#recent-documents h2 {
+	margin: 0 0 10px;
+	font-size: 13px;
+	font-weight: 600;
+}
+#recent-list {
+	display: grid;
+	gap: 6px;
+}
+.recent-document {
+	width: 100%;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding: 8px 10px;
+	border: 1px solid var(--line);
+	background: var(--paper);
+}
+#search-dialog {
+	width: min(760px, calc(100vw - 48px));
+	max-height: min(760px, calc(100vh - 72px));
+	overflow: hidden;
+}
+.search-box {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-top: 14px;
+}
+#search-input {
+	flex: 1;
+	margin: 0;
+}
+#search-summary {
+	min-width: 72px;
+	text-align: right;
+	color: var(--muted);
+	font-size: 12px;
+}
+#search-results {
+	margin-top: 12px;
+	max-height: 52vh;
+	overflow: auto;
+	display: grid;
+	gap: 5px;
+}
+.search-result {
+	display: grid;
+	grid-template-columns: minmax(160px, .45fr) minmax(0, 1fr);
+	gap: 14px;
+	width: 100%;
+	text-align: left;
+	border: 1px solid transparent;
+	background: transparent;
+}
+.search-result:hover,
+.search-result:focus-visible {
+	background: var(--active);
+	border-color: var(--line);
+}
+.search-result strong {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 11px;
+}
+.search-result span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--muted);
+	font-size: 12px;
+}
