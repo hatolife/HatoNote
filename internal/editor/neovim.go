@@ -33,6 +33,12 @@ type UndoState struct {
 	CanRedo bool `msgpack:"canRedo" json:"canRedo"`
 }
 
+type healthState struct {
+	Mode     string `msgpack:"mode"`
+	Blocking bool   `msgpack:"blocking"`
+	Error    string `msgpack:"error"`
+}
+
 func Start(root, undoDir string, cfg settings.Settings, emit func(string, any)) (*Native, error) {
 	launch, err := Resolve(cfg.NvimPath)
 	if err != nil {
@@ -139,6 +145,11 @@ notify_scroll()
 	if err != nil {
 		return fail(err)
 	}
+	if message, err := e.BlockingError(); err != nil {
+		return fail(err)
+	} else if message != "" {
+		return fail(fmt.Errorf("Neovim設定の読み込みエラー: %s", message))
+	}
 	return e, nil
 }
 
@@ -234,6 +245,23 @@ func (e *Native) UndoState() (UndoState, error) {
 	var state UndoState
 	err := e.Client.ExecLua(`local tree=vim.fn.undotree(); return {canUndo=tree.seq_cur>0,canRedo=tree.seq_cur<tree.seq_last}`, &state)
 	return state, err
+}
+
+// BlockingError は設定エラーなどでNeovimがhit-enter待ちになった場合だけ原因を返します。
+func (e *Native) BlockingError() (string, error) {
+	var state healthState
+	err := e.Client.ExecLua(`local mode=vim.api.nvim_get_mode(); return {mode=mode.mode,blocking=mode.blocking,error=vim.v.errmsg}`, &state)
+	if err != nil {
+		return "", err
+	}
+	return blockingError(state), nil
+}
+
+func blockingError(state healthState) string {
+	if !state.Blocking || !strings.HasPrefix(state.Mode, "r") {
+		return ""
+	}
+	return strings.TrimSpace(state.Error)
 }
 func (e *Native) Resize(cols, rows int) error {
 	if cols < 10 {
