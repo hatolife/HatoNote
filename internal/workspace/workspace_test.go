@@ -10,11 +10,19 @@ import (
 	"github.com/hatolife/HatoNote/internal/settings"
 )
 
+
+func testDocument() *bundle.Document {
+	d := bundle.New()
+	d.Files["index.md"] = []byte("# Test\n")
+	d.Entry = "index.md"
+	return d
+}
+
 func TestWorkspaceSaveBackupsAndConflict(t *testing.T) {
 	base := t.TempDir()
 	cfg := settings.Default()
 	cfg.BackupGenerations = 2
-	s, err := New(base, bundle.New(), "", false)
+	s, err := New(base, testDocument(), "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +68,7 @@ func TestWorkspaceSaveBackupsAndConflict(t *testing.T) {
 
 func TestRecoveryAndImageRetention(t *testing.T) {
 	base := t.TempDir()
-	s, err := New(base, bundle.New(), "", false)
+	s, err := New(base, testDocument(), "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,12 +112,12 @@ func TestPortablePathsAndSymlinks(t *testing.T) {
 		}
 	}
 	base := t.TempDir()
-	d := bundle.New()
+	d := testDocument()
 	d.Files["INDEX.md"] = []byte("duplicate")
 	if _, err := New(base, d, "", false); err == nil {
 		t.Fatal("case collision accepted")
 	}
-	s, err := New(base, bundle.New(), "", false)
+	s, err := New(base, testDocument(), "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
