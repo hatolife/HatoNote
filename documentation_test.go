@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -49,7 +50,7 @@ func checkSpecificationDocument(t *testing.T, path, text string, ids map[string]
 			continue
 		}
 		id := strings.SplitN(item, ":", 2)[0]
-		location := path + ":" + string(rune(index+1))
+		location := fmt.Sprintf("%s:%d", path, index+1)
 		if previous, ok := ids[id]; ok {
 			t.Errorf("%s:%d: 仕様ID %s は %s と重複しています", path, index+1, id, previous)
 			continue
