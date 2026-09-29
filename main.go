@@ -57,7 +57,7 @@ func run(args Args) error {
 		log.Printf("診断ログを開けません: %v", logErr)
 	} else {
 		defer ring.Close()
-		log.SetOutput(io.MultiWriter(previousLogOutput, ring))
+		log.SetOutput(io.MultiWriter(ring, previousLogOutput))
 		defer log.SetOutput(previousLogOutput)
 	}
 	log.Printf("HatoNote %s start", version)
