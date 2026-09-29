@@ -688,8 +688,16 @@ function resolveSingleMarkdownImage(reference: string): string | null {
 	if (!name || name.startsWith('/') || name.includes('\\')) return null;
 	return name;
 }
+function resolveEditorImage(reference: string): string | null {
+	if (documentIs('markdown')) {
+		const target = resolveSingleMarkdownImage(reference);
+		return target ? `${location.origin}/local-image?path=${encodeURIComponent(target)}` : null;
+	}
+	const target = resolveLink(reference);
+	return target ? `${location.origin}/bundle/${target.path.split('/').map(encodeURIComponent).join('/')}` : null;
+}
 
-type ScrollSource = 'editor' | 'preview' | 'book' | 'native' | 'state';
+type ScrollSource = 'editor' | 'wysiwyg' | 'preview' | 'book' | 'native' | 'state';
 
 function scrollRatio(top: number, height: number, viewport: number): number {
 	const range = Math.max(0, height - viewport);
@@ -704,7 +712,7 @@ function ensureCurrentTocVisible(): void {
 	target?.scrollIntoView({block:'nearest'});
 }
 function sendNativeScroll(ratio: number): void {
-	if (!editing || state?.engine !== 'neovim') return;
+	if (!editing || activeEngine !== 'neovim') return;
 	window.clearTimeout(nativeScrollTimer);
 	nativeScrollTimer = window.setTimeout(() => {
 		void api.NativeScroll(ratio).catch(error => status(String(error), true));
@@ -720,6 +728,9 @@ function syncScroll(source: ScrollSource, ratio: number, force = false): void {
 
 	if (source !== 'editor') {
 		editor.scrollTop = next * Math.max(0, editor.scrollHeight - editor.clientHeight);
+	}
+	if (source !== 'wysiwyg') {
+		wysiwyg.scrollTop = next * Math.max(0, wysiwyg.scrollHeight - wysiwyg.clientHeight);
 	}
 	if (source !== 'preview' && !preview.hidden && !documentIs('slides')) {
 		const win = preview.contentWindow;
@@ -738,6 +749,7 @@ function syncScroll(source: ScrollSource, ratio: number, force = false): void {
 	});
 }
 editor.addEventListener('scroll', () => syncScroll('editor', scrollRatio(editor.scrollTop, editor.scrollHeight, editor.clientHeight)), {passive:true});
+wysiwygContent.addEventListener('scroll', () => syncScroll('wysiwyg', scrollRatio(wysiwyg.scrollTop, wysiwyg.scrollHeight, wysiwyg.clientHeight)), {passive:true});
 
 async function render(): Promise<void> {
 	if (!state?.id) return;
@@ -851,9 +863,19 @@ function insertText(text: string): void {
 }
 function undo(redo: boolean): void {
 	if (busy || !editing) return;
-	if (state.engine === 'neovim') { enqueueNative(() => api.NativeUndo(redo)); return; }
+	if (activeEngine === 'neovim') { enqueueNative(() => api.NativeUndo(redo)); return; }
 	const entry = redo ? history().redo() : history().undo(); if (!entry) return;
-	editor.value = entry.text; editor.setSelectionRange(entry.start, entry.end); edited(); updateUndoRedo(); editor.focus();
+	editor.value = entry.text;
+	if (activeEngine === 'wysiwyg') {
+		void loadWysiwyg().then(ok => {
+			if (!ok) { activeEngine = 'builtin'; applyEditor(); status('Undo後の内容をWYSIWYGで安全に表示できないため、内蔵エディターへ切り替えました', true); }
+			else wysiwyg.focus();
+		}).catch(error => status(String(error), true));
+	} else {
+		editor.setSelectionRange(entry.start, entry.end);
+		editor.focus();
+	}
+	edited(); updateUndoRedo();
 }
 element('undo').onclick = () => undo(false); element('redo').onclick = () => undo(true);
 const newDialog = element<HTMLDialogElement>('new-dialog');
@@ -887,7 +909,9 @@ async function insertImage(name: string): Promise<void> {
 	const up = '../'.repeat(current.split('/').length - 1);
 	const reference = (up + name).split('/').map(encodeURIComponent).join('/');
 	const text = `![画像](${reference})`;
-	if (state.engine === 'neovim') await api.NativePaste(text); else insertText(text);
+	if (activeEngine === 'neovim') await api.NativePaste(text);
+	else if (activeEngine === 'wysiwyg') wysiwyg.insertImage(reference, resolveEditorImage(reference));
+	else insertText(text);
 	await refreshSidebar(); await render();
 }
 element('image').onclick = () => void action(async () => { await insertImage(await api.AddImage()); });
@@ -897,7 +921,7 @@ async function clipboardImage(file: File): Promise<void> {
 	for (let i = 0; i < data.length; i += 32768) binary += String.fromCharCode(...data.subarray(i, i + 32768));
 	await insertImage(await api.StoreImage(btoa(binary)));
 }
-for (const target of [editor, nativeInput]) target.addEventListener('paste', event => {
+for (const target of [editor, nativeInput, wysiwygContent]) target.addEventListener('paste', event => {
 	if (busy || !editing) { event.preventDefault(); return; }
 	const image = Array.from(event.clipboardData?.items || []).find(item => item.type.startsWith('image/'))?.getAsFile();
 	if (image && !state.capabilities.embeddedAssets) {
@@ -940,7 +964,8 @@ window.addEventListener('keydown', event => {
 	if (!(event.ctrlKey || event.metaKey)) return;
 	if (event.key.toLowerCase() === 's') { event.preventDefault(); void save(event.shiftKey); }
 	if (event.key.toLowerCase() === 'o' && event.target !== nativeInput) { event.preventDefault(); element('open').click(); }
-	if (state?.engine === 'builtin' && ['z','y'].includes(event.key.toLowerCase()) && event.target === editor) { event.preventDefault(); undo(event.shiftKey || event.key.toLowerCase() === 'y'); }
+	const localEditor = activeEngine === 'builtin' ? event.target === editor : activeEngine === 'wysiwyg' ? wysiwyg.contains(event.target) : false;
+	if (state?.engine === 'builtin' && ['z','y'].includes(event.key.toLowerCase()) && localEditor) { event.preventDefault(); undo(event.shiftKey || event.key.toLowerCase() === 'y'); }
 });
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
 element('settings').onclick = () => {
@@ -985,15 +1010,21 @@ element('settings-save').onclick = () => {
 	}
 	void action(async () => {
 		await flush();
-		const keepEngine = state?.engine;
+		const keepEngine = activeEngine;
 		try { await api.Configure(next); } catch (error) { element('settings-error').textContent = String(error); throw error; }
 		cfg = next; autoDeadline = 0; applyTheme();
 		for (const h of histories.values()) h.setLimit(cfg.undoLevels);
-		if(editing && keepEngine === 'neovim') await api.StartNative(); await refreshSidebar(); applyEditor();
+		if(editing && keepEngine === 'neovim') await api.StartNative();
+		await refreshSidebar();
+		if (keepEngine === 'wysiwyg' && supportsWysiwyg()) activeEngine = 'wysiwyg';
+		applyEditor();
 		if (state.engine === 'neovim') {
 			await api.NativeOpen(current);
 			await api.NativeScroll(scrollSyncRatio);
-		} else if(state.id) editor.value = await api.Text(current);
+		} else if(state.id) {
+			editor.value = await api.Text(current);
+			if (activeEngine === 'wysiwyg' && !(await loadWysiwyg())) { activeEngine = 'builtin'; applyEditor(); }
+		}
 		await render(); if(state.id) await refreshBook();
 		requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
 		settingsDialog.close(); status('設定を保存しました');
@@ -1158,7 +1189,7 @@ window.setInterval(() => {
 	polling = true;
 	activePoll = (async () => {
 	try {
-		if (state.engine === 'neovim') {
+		if (activeEngine === 'neovim' && state.engine === 'neovim') {
 			await nativePending;
 			const value = await api.NativePoll();
 			if (value.changed) {
@@ -1173,7 +1204,8 @@ window.setInterval(() => {
 		if (state.engine === 'builtin') {
 			editor.value = await api.Text(current);
 			changed = false;
-			await render();
+			if (activeEngine === 'wysiwyg' && !(await loadWysiwyg())) activeEngine = 'builtin';
+			applyEditor(); await render();
 		}
 		status(state.nativeError || String(error), true);
 	}
