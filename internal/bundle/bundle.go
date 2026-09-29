@@ -220,7 +220,7 @@ func (d *Document) Put(name string, data []byte) error {
 }
 
 func (d *Document) Pages() []string {
-	if d.ManifestMode == "slides" {
+	if d.HasSlides() {
 		deck, err := d.Deck()
 		if err != nil {
 			return []string{}
