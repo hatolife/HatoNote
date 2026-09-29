@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/hatolife/HatoNote/internal/bundle"
+	"github.com/hatolife/HatoNote/internal/document"
 	"github.com/hatolife/HatoNote/internal/settings"
 )
 
@@ -27,8 +28,8 @@ func TestSingleMarkdownOpenOverwriteAndConvert(t *testing.T) {
 		t.Fatalf("open: opened=%v err=%v", opened, err)
 	}
 	state := a.State()
-	if !state.SingleMarkdown {
-		t.Fatal("単一Markdownモードになっていません")
+	if state.DocumentType != document.Markdown {
+		t.Fatalf("document type = %q", state.DocumentType)
 	}
 	if state.Dirty {
 		t.Fatal("開いただけのMarkdownが未保存扱いです")
@@ -63,8 +64,8 @@ func TestSingleMarkdownOpenOverwriteAndConvert(t *testing.T) {
 	if string(body) != "# 更新した本文\n" {
 		t.Fatalf("unexpected markdown: %q", body)
 	}
-	if !a.State().SingleMarkdown {
-		t.Fatal("Markdown上書き後に単一モードを失いました")
+	if a.State().DocumentType != document.Markdown {
+		t.Fatalf("document type = %q", a.State().DocumentType)
 	}
 
 	if err := a.Update(state.Entry, "# MDZへ変換\n"); err != nil {
@@ -77,8 +78,8 @@ func TestSingleMarkdownOpenOverwriteAndConvert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.State().SingleMarkdown {
-		t.Fatal("MDZ保存後も単一Markdownモードのままです")
+	if a.State().DocumentType != document.MDZ {
+		t.Fatalf("document type = %q", a.State().DocumentType)
 	}
 	doc, err := bundle.Read(destination)
 	if err != nil {
