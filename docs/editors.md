@@ -29,6 +29,10 @@
 - EDITOR-WYSIWYG-008: スライド文書の `wysiwyg` は現在スライドのレイアウト、余白、フォント、文字サイズ、背景色を編集表示へ反映する。
 - EDITOR-WYSIWYG-009: スライド文書の `wysiwyg` は自由配置編集を提供せず、Markdown本文を正規データとして維持する。
 - EDITOR-WYSIWYG-010: `columns` レイアウトのWYSIWYG編集では列区切り `<!-- column -->` を失わない。
+- EDITOR-WYSIWYG-011: WYSIWYG編集中は編集面の上部に書式バーを表示する。
+- EDITOR-WYSIWYG-012: 書式バーから段落・見出し、太字、斜体、取り消し線、コード、箇条書き、番号付きリスト、リンク、水平線を変更できる。
+- EDITOR-WYSIWYG-013: スライド文書では1スライドにつき1つのMarkdownファイルだけをWYSIWYG編集対象とする。
+- EDITOR-WYSIWYG-014: スライドWYSIWYGは1つのMarkdownファイル内に複数スライドを保持する機能を提供しない。
 
 ## neovim
 
