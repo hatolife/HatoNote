@@ -12,8 +12,8 @@ interface BookContents { revision: string; entries: TocEntry[]; unlisted: string
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
 interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number }
 interface Recovery { id: string; filename: string; updated: string }
-interface Slide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; notes: string }
-interface SlideDeck { version: number; title: string; theme: string; aspect: string; marginColor?: string; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number; slides: Slide[] }
+interface Slide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; notes: string; hidePageNumber?: boolean }
+interface SlideDeck { version: number; title: string; theme: string; aspect: string; marginColor?: string; pageNumberEnabled?: boolean; pageNumberPosition?: string; pageNumberStart?: number; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number; slides: Slide[] }
 interface SlidesInfo { deck: SlideDeck; revision: string; canUndo: boolean; canRedo: boolean }
 interface Dependency {name:string;found:boolean;path:string;message:string}
 interface MarkdownHeading { id: string; text: string; level: number }
@@ -1648,6 +1648,14 @@ function slideTypographyValues(deck: SlideDeck, slide: Slide): SlideTypographyVa
 function frameTypography(deck: SlideDeck): Record<string, unknown> {
 	return {contentMarginX:deck.contentMarginX || 60,contentMarginY:deck.contentMarginY || 48,fontFamily:deck.fontFamily || '',bodyFontSize:deck.bodyFontSize || 0,h1FontSize:deck.h1FontSize || 0,h2FontSize:deck.h2FontSize || 0,h3FontSize:deck.h3FontSize || 0,h4FontSize:deck.h4FontSize || 0,h5FontSize:deck.h5FontSize || 0};
 }
+function framePageNumbers(deck: SlideDeck, offset = 0): Record<string, unknown> {
+	return {
+		pageNumberEnabled: !!deck.pageNumberEnabled,
+		pageNumberPosition: deck.pageNumberPosition || 'bottom-right',
+		pageNumberStart: Number.isInteger(deck.pageNumberStart) ? deck.pageNumberStart : 1,
+		pageNumberOffset: offset,
+	};
+}
 function slideTypographyStyle(deck: SlideDeck, slide: Slide): string {
 	const parts=[`font-size:${deck.bodyFontSize || slide.fontSize}px`,`--slide-margin-x:${deck.contentMarginX || 60}px`,`--slide-margin-y:${deck.contentMarginY || 48}px`];
 	if(deck.fontFamily) parts.push(`font-family:${slideFontStack(deck.fontFamily)}`);
@@ -1697,7 +1705,7 @@ async function renderSlidePreview(): Promise<void> {
 	if (ticket!==renderID || current!==slide.file || !documentIs('slides')) return;
 	preview.hidden=true; element('book-preview').hidden=true; slideFrame.hidden=false;
 	element('slide-overflow').hidden=true; refreshSlideTypography();
-	sendFrame(slideFrame, {type:'mdz-slide-render', token:ticket, slides:[{...slide, html}], theme:deck.theme, aspect:deck.aspect,marginColor:deck.marginColor||'#ffffff', ...frameTypography(deck), index:0, presentation:false, editorPreview:editing, previewNavigation:!editing, debugOutline:slideDebugOutline});
+	sendFrame(slideFrame, {type:'mdz-slide-render', token:ticket, slides:[{...slide, html}], theme:deck.theme, aspect:deck.aspect,marginColor:deck.marginColor||'#ffffff', ...frameTypography(deck), ...framePageNumbers(deck, Math.max(0,deck.slides.findIndex(item=>item.id===slide.id))), index:0, presentation:false, editorPreview:editing, previewNavigation:!editing, debugOutline:slideDebugOutline});
 	const thumbnail = document.querySelector<HTMLIFrameElement>('.slide-card.selected iframe');
 	if (thumbnail) setThumbnail(thumbnail, slide, html, deck);
 }
@@ -1708,10 +1716,14 @@ function setThumbnail(frame: HTMLIFrameElement, slide: Slide, html: string, deck
 	const width = frame.clientWidth || 180;
 	const scale = width/960;
 	const bg = /^#[0-9a-f]{6}$/i.test(slide.background || '') ? slide.background : '';
-	const key=JSON.stringify([html,slide.layout,slide.fontSize,bg,deck.theme,deck.aspect,deck.contentMarginX,deck.contentMarginY,deck.fontFamily,deck.bodyFontSize,deck.h1FontSize,deck.h2FontSize,deck.h3FontSize,deck.h4FontSize,deck.h5FontSize,width]);
+	const key=JSON.stringify([html,slide.layout,slide.fontSize,bg,slide.hidePageNumber,deck.theme,deck.aspect,deck.contentMarginX,deck.contentMarginY,deck.fontFamily,deck.bodyFontSize,deck.h1FontSize,deck.h2FontSize,deck.h3FontSize,deck.h4FontSize,deck.h5FontSize,deck.pageNumberEnabled,deck.pageNumberPosition,deck.pageNumberStart,width]);
 	if(thumbnailKeys.get(frame)===key)return;
 	thumbnailKeys.set(frame,key);
-	frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${location.origin} 'unsafe-inline'; img-src ${location.origin}; base-uri 'none'"><link rel="stylesheet" href="${location.origin}/vendor/reveal.css"><link rel="stylesheet" href="${location.origin}/slides.css"><style>html,body{width:100%;height:100%;background:transparent}.reveal{width:960px;height:${height}px;transform:scale(${scale});transform-origin:0 0}.reveal .slides{position:relative;width:960px;height:${height}px;left:0;top:0;transform:none}.reveal .slides>section{display:block;position:relative;top:0;left:0}</style></head><body><div class="reveal"><div class="slides"><section data-theme="${deck.theme}" data-layout="${slide.layout}" style="${slideTypographyStyle(deck,slide)};${bg?'background-color:'+bg:''}"><div class="slide-content">${html}</div></section></div></div></body></html>`;
+	const pageIndex=Math.max(0,deck.slides.findIndex(item=>item.id===slide.id));
+	const pageNumberValue=(Number.isInteger(deck.pageNumberStart)?deck.pageNumberStart!:1)+pageIndex;
+	const pageNumberPosition=deck.pageNumberPosition||'bottom-right';
+	const pageNumber=deck.pageNumberEnabled&&!slide.hidePageNumber?`<div class="slide-page-number" data-position="${pageNumberPosition}">${pageNumberValue}</div>`:'';
+	frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${location.origin} 'unsafe-inline'; img-src ${location.origin}; base-uri 'none'"><link rel="stylesheet" href="${location.origin}/vendor/reveal.css"><link rel="stylesheet" href="${location.origin}/slides.css"><style>html,body{width:100%;height:100%;background:transparent}.reveal{width:960px;height:${height}px;transform:scale(${scale});transform-origin:0 0}.reveal .slides{position:relative;width:960px;height:${height}px;left:0;top:0;transform:none}.reveal .slides>section{display:block;position:relative;top:0;left:0}</style></head><body><div class="reveal"><div class="slides"><section data-theme="${deck.theme}" data-layout="${slide.layout}" style="${slideTypographyStyle(deck,slide)};${bg?'background-color:'+bg:''}"><div class="slide-content">${html}</div>${pageNumber}</section></div></div></body></html>`;
 }
 let thumbnailObserver: IntersectionObserver | undefined;
 let slideListKey = '';
@@ -1846,8 +1858,11 @@ element('slides-settings').onclick=()=>{
 	if(!slidesInfo) return;
 	slideSettings=structuredClone(slidesInfo);
 	const deck=slideSettings.deck, slide=deck.slides.find(s=>s.file===current)!;
-	for(const [id,value] of Object.entries({'deck-title':deck.title,'deck-theme':deck.theme,'deck-aspect':deck.aspect,'deck-margin':deck.marginColor||'#ffffff','slide-title':slide.title,'slide-layout':slide.layout,'slide-background':slide.background||'','slide-notes':slide.notes||''})) {
+	for(const [id,value] of Object.entries({'deck-title':deck.title,'deck-theme':deck.theme,'deck-aspect':deck.aspect,'deck-margin':deck.marginColor||'#ffffff','deck-page-number-start':deck.pageNumberStart??1,'deck-page-number-position':deck.pageNumberPosition||'bottom-right','slide-title':slide.title,'slide-layout':slide.layout,'slide-background':slide.background||'','slide-notes':slide.notes||''})) {
 		const control=element<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>(id); control.value=String(value); control.disabled=!editing;
+	}
+	for(const [id,checked] of [['deck-page-number-enabled',!!deck.pageNumberEnabled],['slide-hide-page-number',!!slide.hidePageNumber]] as const) {
+		const control=element<HTMLInputElement>(id);control.checked=checked;control.disabled=!editing;
 	}
 	element('slides-settings-save').hidden=!editing;element('slides-settings-error').textContent='';showAppDialog(element<HTMLDialogElement>('slides-settings-dialog'));
 };
@@ -1857,7 +1872,8 @@ element('slides-settings-form').onsubmit=event=>{
 	const value=(id:string)=>element<HTMLInputElement>(id).value;
 	const deck=structuredClone(slideSettings.deck), slide=deck.slides.find(s=>s.file===current)!;
 	deck.title=value('deck-title').trim();deck.theme=value('deck-theme');deck.aspect=value('deck-aspect');deck.marginColor=value('deck-margin');
-	slide.title=value('slide-title').trim();slide.layout=value('slide-layout');slide.background=value('slide-background');slide.notes=value('slide-notes');
+	deck.pageNumberEnabled=element<HTMLInputElement>('deck-page-number-enabled').checked;deck.pageNumberStart=Number(value('deck-page-number-start'));deck.pageNumberPosition=value('deck-page-number-position');
+	slide.title=value('slide-title').trim();slide.layout=value('slide-layout');slide.background=value('slide-background');slide.notes=value('slide-notes');slide.hidePageNumber=element<HTMLInputElement>('slide-hide-page-number').checked;
 	void action(async()=>{
 		await flush();
 		try {slidesInfo=await api.ConfigureSlides(slideSettings!.revision,deck);}
@@ -1909,7 +1925,7 @@ function openPresentation(first: boolean): void {
 			for(const slide of deck.slides) slides.push({...slide,html:await slideHTML(slide)});
 			if(overlay.hidden||token!==presentationToken)return;
 			updatePresentationPosition();
-			sendFrame(presentationFrame,{type:'mdz-slide-render',token,slides,theme:deck.theme,aspect:deck.aspect,marginColor:deck.marginColor||'#ffffff',...frameTypography(deck),index:presentationIndex,presentation:true});
+			sendFrame(presentationFrame,{type:'mdz-slide-render',token,slides,theme:deck.theme,aspect:deck.aspect,marginColor:deck.marginColor||'#ffffff',...frameTypography(deck),...framePageNumbers(deck),index:presentationIndex,presentation:true});
 			presentationFrame.focus();
 		} catch(error) {closePresentation();throw error;}
 	});
@@ -2015,7 +2031,7 @@ function updatePresenter(index:number):void{
 	element('presenter-notes').textContent=dualDeck.slides[index]?.notes||'このページにノートはありません。';
 	for(const [id,i] of [['presenter-previous',Math.max(0,index-1)],['presenter-current',index],['presenter-next',Math.min(index+1,dualSlides.length-1)]] as const) {
 		const frame=element<HTMLIFrameElement>(id);
-		sendFrame(frame,{type:'mdz-slide-render',token:++presentationToken,slides:[dualSlides[i]],theme:dualDeck.theme,aspect:dualDeck.aspect,marginColor:dualDeck.marginColor||'#ffffff',...frameTypography(dualDeck),index:0,presentation:false});
+		sendFrame(frame,{type:'mdz-slide-render',token:++presentationToken,slides:[dualSlides[i]],theme:dualDeck.theme,aspect:dualDeck.aspect,marginColor:dualDeck.marginColor||'#ffffff',...frameTypography(dualDeck),...framePageNumbers(dualDeck,i),index:0,presentation:false});
 	}
 	element('presenter-previous').hidden=index===0;element('presenter-first').hidden=index!==0;
 	element('presenter-next').hidden=index===dualSlides.length-1;element('presenter-last').hidden=index!==dualSlides.length-1;
