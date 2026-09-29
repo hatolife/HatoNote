@@ -10,8 +10,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 )
 
-// Render は生HTMLと危険なURLを許可せずにMarkdownを変換します。
-func (a *App) Render(text string) (string, error) {
+func renderMarkdown(text string) (string, error) {
 	if len(text) > bundle.MaxFile {
 		return "", fmt.Errorf("本文が大きすぎます")
 	}
@@ -21,4 +20,9 @@ func (a *App) Render(text string) (string, error) {
 		return "", err
 	}
 	return output.String(), nil
+}
+
+// Render は生HTMLと危険なURLを許可せずにMarkdownを変換します。
+func (a *App) Render(text string) (string, error) {
+	return renderMarkdown(text)
 }
