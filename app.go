@@ -607,11 +607,57 @@ func (a *App) syncNativeLocked() error {
 	a.pending.Store(false)
 	return a.session.Checkpoint()
 }
+func (a *App) fallbackNativeLocked(reason error) error {
+	if a.native == nil {
+		return reason
+	}
+	current, currentErr := a.native.Current()
+	flushErr := a.native.Flush()
+	a.inputNative.Store(nil)
+	a.native.Close()
+	a.native = nil
+
+	var preserveErr error
+	if flushErr == nil {
+		if err := a.session.Capture(); err != nil {
+			preserveErr = err
+		} else if err := a.session.Checkpoint(); err != nil {
+			preserveErr = err
+		} else {
+			a.pending.Store(false)
+		}
+	} else if currentErr == nil && current.Name != "" {
+		if err := a.session.Put(current.Name, []byte(current.Text)); err != nil {
+			preserveErr = fmt.Errorf("Neovimの保存失敗: %v; 現在バッファの退避失敗: %w", flushErr, err)
+		} else {
+			a.pending.Store(false)
+		}
+	} else {
+		preserveErr = flushErr
+		if currentErr != nil {
+			preserveErr = fmt.Errorf("Neovimの保存失敗: %v; 現在バッファの取得失敗: %w", flushErr, currentErr)
+		}
+	}
+
+	a.nativeError = "Neovimで問題が発生したため内蔵エディターへ切り替えました: " + reason.Error()
+	if preserveErr != nil {
+		a.nativeError += "。作業内容の退避にも失敗しました: " + preserveErr.Error()
+	}
+	return fmt.Errorf("%s", a.nativeError)
+}
+
 func (a *App) NativePoll() (NativeState, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.native == nil {
 		return NativeState{}, nil
+	}
+	message, healthErr := a.native.BlockingError()
+	if healthErr != nil {
+		return NativeState{}, a.fallbackNativeLocked(fmt.Errorf("Neovimとの通信に失敗しました: %w", healthErr))
+	}
+	if message != "" {
+		return NativeState{}, a.fallbackNativeLocked(fmt.Errorf("Neovimがエラー入力待ちになりました: %s", message))
 	}
 	if !a.native.Changed() {
 		return NativeState{}, nil
