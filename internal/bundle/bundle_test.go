@@ -139,3 +139,19 @@ func TestDecompressionLimit(t *testing.T) {
 		t.Fatal("oversized ZIP accepted")
 	}
 }
+
+
+func TestPagesAcceptLegacyPageOrder(t *testing.T) {
+	doc := New()
+	doc.Files = map[string][]byte{
+		"a.md": []byte("# A\n"),
+		"b.md": []byte("# B\n"),
+	}
+	doc.Entry = "a.md"
+	doc.Manifest = map[string]json.RawMessage{}
+	doc.Manifest[LegacyPageOrderKey], _ = json.Marshal([]string{"b.md", "a.md"})
+	pages := doc.Pages()
+	if len(pages) != 2 || pages[0] != "b.md" || pages[1] != "a.md" {
+		t.Fatalf("pages = %v", pages)
+	}
+}
