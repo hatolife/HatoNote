@@ -1,6 +1,7 @@
 import { History, TextState } from './history.js';
 import { NativeView } from './nvim.js';
 import { WysiwygEditor, equivalentRenderedHTML, markdownFromRenderedHTML, renderedHTMLHasOmittedRawHTML } from './wysiwyg.js';
+import { CommandRegistry } from './commands.js';
 type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
 type PaneLayout = 'editor' | 'split' | 'preview';
 type EditorEngine = 'builtin' | 'wysiwyg' | 'neovim';
@@ -40,6 +41,7 @@ interface Backend {
 }
 declare global { interface Window { go: { main: { App: Backend } }; runtime: { OnFileDrop(callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean): void; ResolveFilePaths?(x: number, y: number, files: File[]): void; EventsOn(event: string, callback: (...args: any[]) => void): void; BrowserOpenURL(url: string): void; WindowMinimise?(): void; WindowToggleMaximise?(): void; Quit?(): void; WindowFullscreen?(): void; WindowUnfullscreen?(): void; WindowIsFullscreen?(): Promise<boolean> } } }
 const api = window.go.main.App;
+const commands = new CommandRegistry();
 const recentDocumentsKey = 'hatonote.recentDocuments';
 const element = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const dialogBackdrop = element<HTMLElement>('dialog-backdrop');
@@ -140,6 +142,7 @@ const wysiwyg = new WysiwygEditor(wysiwygRoot, wysiwygContent, wysiwygToolbar, w
 });
 
 function status(message: string, error = false): void { element('status').textContent = message; element('status').title = message; element('status').classList.toggle('error', error); }
+function runCommand(id: string): void { void commands.execute(id).catch(error => status(String(error), true)); }
 function loadRecentDocuments(): string[] {
 	try {
 		const value = JSON.parse(localStorage.getItem(recentDocumentsKey) || '[]');
@@ -926,9 +929,9 @@ function undo(redo: boolean): void {
 }
 element('undo').onclick = () => undo(false); element('redo').onclick = () => undo(true);
 const newDialog = element<HTMLDialogElement>('new-dialog');
-element('new').onclick = () => showAppDialog(newDialog);
-element('welcome-new').onclick = () => showAppDialog(newDialog);
-element('welcome-open').onclick = () => element('open').click();
+element('new').onclick = () => runCommand('document.new');
+element('welcome-new').onclick = () => runCommand('document.new');
+element('welcome-open').onclick = () => runCommand('document.open');
 element('welcome-recovery').onclick = () => element('recovery').click();
 // 種類のボタンを押すと、そのまま閲覧モードで新しい文書を作成します。
 for (const button of newDialog.querySelectorAll<HTMLButtonElement>('[data-new-kind]')) {
@@ -938,8 +941,8 @@ for (const button of newDialog.querySelectorAll<HTMLButtonElement>('[data-new-ki
 		void action(async () => { await flush(); if (await api.NewDocument(kind)) await reload(true); });
 	};
 }
-element('open').onclick = () => void action(async () => { await flush(); if (await api.Open('')) await reload(); });
-element('save').onclick = () => void save(false); element('save-as').onclick = () => void save(true);
+element('open').onclick = () => runCommand('document.open');
+element('save').onclick = () => runCommand('document.save'); element('save-as').onclick = () => runCommand('document.saveAs');
 async function save(as: boolean): Promise<void> {
 	if(!state?.id) return;
 	await action(async () => {
@@ -1021,12 +1024,14 @@ element('document-to-slides').onclick = () => void convertDocumentType('slides')
 element('slides-to-document').onclick = () => void convertDocumentType('mdz');
 window.addEventListener('keydown', event => {
 	if (!(event.ctrlKey || event.metaKey)) return;
-	if (event.key === '/' && editing && !activeAppDialog?.open) { event.preventDefault(); showAppDialog(element<HTMLDialogElement>('markdown-cheatsheet-dialog')); return; }
-	if (event.key.toLowerCase() === 'f' && state?.id && !activeAppDialog?.open) { event.preventDefault(); showSearch(); return; }
-	if (event.key.toLowerCase() === 's') { event.preventDefault(); void save(event.shiftKey); }
-	if (event.key.toLowerCase() === 'o' && event.target !== nativeInput) { event.preventDefault(); element('open').click(); }
+	const key = event.key.toLowerCase();
+	if (key === 'p' && event.shiftKey && !activeAppDialog?.open) { event.preventDefault(); showCommandPalette(); return; }
+	if (event.key === '/' && editing && !activeAppDialog?.open) { event.preventDefault(); runCommand('help.markdownCheatsheet'); return; }
+	if (key === 'f' && state?.id && !activeAppDialog?.open) { event.preventDefault(); runCommand('document.search'); return; }
+	if (key === 's') { event.preventDefault(); runCommand(event.shiftKey ? 'document.saveAs' : 'document.save'); return; }
+	if (key === 'o' && event.target !== nativeInput) { event.preventDefault(); runCommand('document.open'); return; }
 	const localEditor = activeEngine === 'builtin' ? event.target === editor : activeEngine === 'wysiwyg' ? wysiwyg.contains(event.target) : false;
-	if (state?.engine === 'builtin' && ['z','y'].includes(event.key.toLowerCase()) && localEditor) { event.preventDefault(); undo(event.shiftKey || event.key.toLowerCase() === 'y'); }
+	if (state?.engine === 'builtin' && ['z','y'].includes(key) && localEditor) { event.preventDefault(); undo(event.shiftKey || key === 'y'); }
 });
 
 const searchDialog = element<HTMLDialogElement>('search-dialog');
@@ -1097,13 +1102,15 @@ function showSearch(): void {
 	searchSummary.textContent = '';
 	requestAnimationFrame(() => searchInput.focus());
 }
-element('search').onclick = showSearch;
+element('search').onclick = () => runCommand('document.search');
 searchInput.addEventListener('input', () => { void searchDocument(searchInput.value).catch(error => status(String(error), true)); });
 
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
 const cheatsheetDialog = element<HTMLDialogElement>('markdown-cheatsheet-dialog');
-element('markdown-cheatsheet').onclick = () => { if (editing) showAppDialog(cheatsheetDialog); };
-element('settings').onclick = () => {
+function showMarkdownCheatsheet(): void {
+	if (editing) showAppDialog(cheatsheetDialog);
+}
+function showSettings(): void {
 	element('settings-error').textContent = '';
 	element('settings-version').textContent = appVersion || '取得中';
 	detectedInitPath = '';
@@ -1112,7 +1119,9 @@ element('settings').onclick = () => {
 		if (typeof value === 'boolean') (control as HTMLInputElement).checked = value; else control.value = String(value);
 	}
 	showAppDialog(settingsDialog);void checkDependencies();
-};
+}
+element('markdown-cheatsheet').onclick = () => runCommand('help.markdownCheatsheet');
+element('settings').onclick = () => runCommand('app.settings');
 element('choose-nvim').onclick = () => void action(async () => { const name = await api.ChooseExecutable(); if (name) {element<HTMLInputElement>('nvim-path').value = name;void checkDependencies();} });
 element('choose-mdbook').onclick = () => void action(async () => { const p = await api.ChooseMdbook(); if(p) {element<HTMLInputElement>('mdbook-path').value=p;void checkDependencies();} });
 element('settings-install-mdbook').onclick = () => void action(async () => {
@@ -1166,6 +1175,53 @@ element('settings-save').onclick = () => {
 		settingsDialog.close(); status('設定を保存しました');
 	});
 };
+commands.register({id:'document.new', title:'新規文書', execute:()=>showAppDialog(newDialog)});
+commands.register({id:'document.open', title:'文書を開く', shortcut:'Ctrl+O', execute:()=>action(async()=>{await flush(); if(await api.Open('')) await reload();})});
+commands.register({id:'document.save', title:'保存', shortcut:'Ctrl+S', enabled:()=>!!state?.id, execute:()=>save(false)});
+commands.register({id:'document.saveAs', title:'名前を付けて保存', shortcut:'Ctrl+Shift+S', enabled:()=>!!state?.id, execute:()=>save(true)});
+commands.register({id:'document.search', title:'文書内検索', shortcut:'Ctrl+F', enabled:()=>!!state?.id, execute:showSearch});
+commands.register({id:'help.markdownCheatsheet', title:'Markdown早見表', shortcut:'Ctrl+/', enabled:()=>editing, execute:showMarkdownCheatsheet});
+commands.register({id:'app.settings', title:'設定', execute:showSettings});
+
+const commandPaletteDialog = element<HTMLDialogElement>('command-palette-dialog');
+const commandPaletteInput = element<HTMLInputElement>('command-palette-input');
+const commandPaletteList = element<HTMLElement>('command-palette-list');
+function renderCommandPalette(): void {
+	const query = commandPaletteInput.value.trim().toLocaleLowerCase();
+	commandPaletteList.replaceChildren();
+	for (const command of commands.list().filter(command => !query || command.title.toLocaleLowerCase().includes(query) || command.id.toLocaleLowerCase().includes(query))) {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'command-palette-item';
+		button.disabled = !command.enabled;
+		const title = document.createElement('span');
+		title.textContent = command.title;
+		const meta = document.createElement('small');
+		meta.textContent = [command.id, command.shortcut].filter(Boolean).join('  ·  ');
+		button.append(title, meta);
+		button.onclick = () => {
+			commandPaletteDialog.close();
+			runCommand(command.id);
+		};
+		commandPaletteList.append(button);
+	}
+}
+function showCommandPalette(): void {
+	commandPaletteInput.value = '';
+	renderCommandPalette();
+	showAppDialog(commandPaletteDialog);
+	requestAnimationFrame(() => commandPaletteInput.focus());
+}
+element('command-palette').onclick = showCommandPalette;
+commandPaletteInput.addEventListener('input', renderCommandPalette);
+commandPaletteInput.addEventListener('keydown', event => {
+	if (event.key !== 'Enter') return;
+	const first = commandPaletteList.querySelector<HTMLButtonElement>('button:not(:disabled)');
+	if (!first) return;
+	event.preventDefault();
+	first.click();
+});
+
 element('data-folder').onclick = () => void api.OpenDataFolder();
 async function showRecoveries(): Promise<void> {
 	const items = await api.Recoveries(); if (!items.length) { status('復旧できる作業データはありません'); return; }
