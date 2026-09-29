@@ -16,6 +16,7 @@ interface SlideDeck { version: number; title: string; theme: string; aspect: str
 interface SlidesInfo { deck: SlideDeck; revision: string; canUndo: boolean; canRedo: boolean }
 interface Dependency {name:string;found:boolean;path:string;message:string}
 interface MarkdownHeading { id: string; text: string; level: number }
+interface SearchResult { page: string; line: number; start: number; end: number; text: string }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
 interface Backend {
 	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>;
@@ -39,6 +40,7 @@ interface Backend {
 }
 declare global { interface Window { go: { main: { App: Backend } }; runtime: { OnFileDrop(callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean): void; ResolveFilePaths?(x: number, y: number, files: File[]): void; EventsOn(event: string, callback: (...args: any[]) => void): void; BrowserOpenURL(url: string): void; WindowMinimise?(): void; WindowToggleMaximise?(): void; Quit?(): void; WindowFullscreen?(): void; WindowUnfullscreen?(): void; WindowIsFullscreen?(): Promise<boolean> } } }
 const api = window.go.main.App;
+const recentDocumentsKey = 'hatonote.recentDocuments';
 const element = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const dialogBackdrop = element<HTMLElement>('dialog-backdrop');
 let activeAppDialog: HTMLDialogElement | undefined;
@@ -138,6 +140,44 @@ const wysiwyg = new WysiwygEditor(wysiwygRoot, wysiwygContent, wysiwygToolbar, w
 });
 
 function status(message: string, error = false): void { element('status').textContent = message; element('status').title = message; element('status').classList.toggle('error', error); }
+function loadRecentDocuments(): string[] {
+	try {
+		const value = JSON.parse(localStorage.getItem(recentDocumentsKey) || '[]');
+		return Array.isArray(value) ? value.filter(item => typeof item === 'string').slice(0, 10) : [];
+	} catch {
+		return [];
+	}
+}
+function renderRecentDocuments(): void {
+	const items = loadRecentDocuments();
+	const section = element('recent-documents');
+	const list = element('recent-list');
+	list.replaceChildren();
+	section.hidden = items.length === 0;
+	for (const filename of items) {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'recent-document';
+		button.textContent = filename.split(/[\\/]/).pop() || filename;
+		button.title = filename;
+		button.onclick = () => void action(async () => {
+			await flush();
+			if (await api.Open(filename)) {
+				await reload();
+				status('最近開いた文書を開きました');
+			}
+		});
+		list.append(button);
+	}
+}
+function rememberRecentDocument(filename: string): void {
+	if (!filename) return;
+	const normalized = filename.toLowerCase();
+	const items = loadRecentDocuments().filter(item => item.toLowerCase() !== normalized);
+	items.unshift(filename);
+	localStorage.setItem(recentDocumentsKey, JSON.stringify(items.slice(0, 10)));
+	renderRecentDocuments();
+}
 function history(): History { let h = histories.get(current); if (!h) { h = new History(cfg.undoLevels); histories.set(current, h); } return h; }
 function setEditorEngine(engine: string): void {
 	for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-engine]')) {
@@ -466,6 +506,7 @@ function applyEditor(): void {
 async function reload(startEditing = false): Promise<void> {
 	element<HTMLSelectElement>('preview-kind').value='auto'; element('preview-kind').hidden=true;
 	state = await api.State(); editing = false; bookFallback = false; bookInfo=undefined; contents=undefined; tocEditing=false; tocSelected=-1;
+	if (state.id && state.filename) rememberRecentDocument(state.filename); else renderRecentDocuments();
 	if (documentIs('markdown')) documentView = 'pages';
 	element<HTMLIFrameElement>('book-preview').src='about:blank'; element('book-preview').hidden=true; preview.hidden=false;
 	closePresentation(); slideFrame.hidden=true; slidesInfo=undefined;
@@ -474,7 +515,7 @@ async function reload(startEditing = false): Promise<void> {
 		scrollSyncRatio = 0; current = ''; currentSession = state.id; activeEngine = 'builtin'; lastAppliedEngine = '';
 	}
 	element('welcome').hidden = !!state.id; element('workspace').hidden = !state.id; element('editing').hidden = !state.id;
-	for (const id of ['save','save-as','sidebar-toggle']) element(id).hidden = !state.id;
+	for (const id of ['save','save-as','sidebar-toggle','search']) element(id).hidden = !state.id;
 	updateEditing();
 	if (!state.id) { current = ''; refreshTitle(); return; }
 	if (startEditing) { editing = true; activeEngine = initialEditorEngine(); if (activeEngine === 'neovim') await api.StartNative(); state = await api.State(); updateEditing(); }
@@ -981,11 +1022,84 @@ element('slides-to-document').onclick = () => void convertDocumentType('mdz');
 window.addEventListener('keydown', event => {
 	if (!(event.ctrlKey || event.metaKey)) return;
 	if (event.key === '/' && editing && !activeAppDialog?.open) { event.preventDefault(); showAppDialog(element<HTMLDialogElement>('markdown-cheatsheet-dialog')); return; }
+	if (event.key.toLowerCase() === 'f' && state?.id && !activeAppDialog?.open) { event.preventDefault(); showSearch(); return; }
 	if (event.key.toLowerCase() === 's') { event.preventDefault(); void save(event.shiftKey); }
 	if (event.key.toLowerCase() === 'o' && event.target !== nativeInput) { event.preventDefault(); element('open').click(); }
 	const localEditor = activeEngine === 'builtin' ? event.target === editor : activeEngine === 'wysiwyg' ? wysiwyg.contains(event.target) : false;
 	if (state?.engine === 'builtin' && ['z','y'].includes(event.key.toLowerCase()) && localEditor) { event.preventDefault(); undo(event.shiftKey || event.key.toLowerCase() === 'y'); }
 });
+
+const searchDialog = element<HTMLDialogElement>('search-dialog');
+const searchInput = element<HTMLInputElement>('search-input');
+const searchResults = element<HTMLElement>('search-results');
+const searchSummary = element<HTMLElement>('search-summary');
+let searchGeneration = 0;
+
+async function searchDocument(query: string): Promise<void> {
+	const generation = ++searchGeneration;
+	searchResults.replaceChildren();
+	searchSummary.textContent = '';
+	const needle = query.trim();
+	if (!needle || !state?.id) return;
+	await flush();
+	const foldedNeedle = needle.toLocaleLowerCase();
+	const results: SearchResult[] = [];
+	for (const pageName of state.pages) {
+		const text = pageName === current ? editor.value : await api.Text(pageName);
+		let lineStart = 0;
+		const lines = text.split('\n');
+		for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+			const line = lines[lineIndex];
+			const foldedLine = line.toLocaleLowerCase();
+			let offset = 0;
+			while (true) {
+				const index = foldedLine.indexOf(foldedNeedle, offset);
+				if (index < 0) break;
+				results.push({page:pageName,line:lineIndex+1,start:lineStart+index,end:lineStart+index+needle.length,text:line.trim()});
+				offset = index + Math.max(1, foldedNeedle.length);
+				if (results.length >= 500) break;
+			}
+			if (results.length >= 500) break;
+			lineStart += line.length + 1;
+		}
+		if (results.length >= 500) break;
+	}
+	if (generation !== searchGeneration) return;
+	searchSummary.textContent = results.length >= 500 ? '500件以上' : `${results.length.toLocaleString()}件`;
+	for (const result of results) {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'search-result';
+		const title = document.createElement('strong');
+		title.textContent = `${result.page} : ${result.line}`;
+		const text = document.createElement('span');
+		text.textContent = result.text || '空行';
+		button.append(title, text);
+		button.onclick = () => void action(async () => {
+			searchDialog.close();
+			await selectPage(result.page);
+			if (editing && activeEngine === 'builtin') {
+				editor.focus({preventScroll:true});
+				editor.setSelectionRange(result.start, result.end);
+				const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 24;
+				editor.scrollTop = Math.max(0, (result.line - 3) * lineHeight);
+			}
+			status(`${result.page} の ${result.line} 行目へ移動しました`);
+		});
+		searchResults.append(button);
+	}
+}
+function showSearch(): void {
+	if (!state?.id) return;
+	showAppDialog(searchDialog);
+	searchInput.value = '';
+	searchResults.replaceChildren();
+	searchSummary.textContent = '';
+	requestAnimationFrame(() => searchInput.focus());
+}
+element('search').onclick = showSearch;
+searchInput.addEventListener('input', () => { void searchDocument(searchInput.value).catch(error => status(String(error), true)); });
+
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
 const cheatsheetDialog = element<HTMLDialogElement>('markdown-cheatsheet-dialog');
 element('markdown-cheatsheet').onclick = () => { if (editing) showAppDialog(cheatsheetDialog); };
@@ -1200,7 +1314,7 @@ window.runtime.EventsOn('native-changed', () => { if (state) { state.dirty = tru
 window.runtime.EventsOn('app-error', error => status(String(error), true));
 
 void action(async () => {
-	cfg = await api.Settings(); applyTheme(); await reload();
+	cfg = await api.Settings(); applyTheme(); renderRecentDocuments(); await reload();
 	const name = await api.Initial(); if (name && await api.Open(name)) await reload();
 	if (!name) await showRecoveries();
 });
