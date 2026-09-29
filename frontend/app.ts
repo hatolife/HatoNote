@@ -1,6 +1,7 @@
 import { History, TextState } from './history.js';
 import { NativeView } from './nvim.js';
 type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
+type PaneLayout = 'editor' | 'split' | 'preview';
 interface DocumentCapabilities { multiplePages: boolean; embeddedAssets: boolean; headingToc: boolean; mdbookPreview: boolean; presentation: boolean; externalEditor: boolean }
 interface Snapshot { filename: string; entry: string; pages: string[]; assets: string[]; documentType: DocumentType; capabilities: DocumentCapabilities; mode: string; singleMarkdown: boolean; dirty: boolean; id: string; workDir: string; engine: string; nativeError: string }
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
@@ -89,6 +90,7 @@ const scrollPositions = new Map<string, number>();
 let autoDeadline = 0;
 let currentSession = '';
 let editing = false;
+let paneLayout: PaneLayout = 'split';
 let bookInfo: BookInfo | undefined;
 let bookFallback = false;
 let contents: BookContents | undefined;
@@ -434,22 +436,29 @@ function updateSlideDebugToggle(): void {
 	toggle.setAttribute('aria-checked',String(slideDebugOutline));
 	toggle.title=slideDebugOutline ? '要素の枠・余白表示を消す' : '要素の枠・余白を表示する';
 }
+const paneClass: Record<PaneLayout, string> = {editor:'edit', split:'split', preview:'view'};
+const paneButton: Record<PaneLayout, string> = {editor:'edit-mode', split:'split-mode', preview:'view-mode'};
+function updatePaneLayout(): void {
+	const active: PaneLayout = editing ? paneLayout : 'preview';
+	element('panes').className = paneClass[active];
+	for (const layout of ['editor','split','preview'] as PaneLayout[]) {
+		const button = element<HTMLButtonElement>(paneButton[layout]);
+		const selected = editing && layout === paneLayout;
+		button.classList.toggle('selected', selected);
+		button.setAttribute('aria-pressed', String(selected));
+	}
+	native.resize();
+}
 function updateEditing(): void {
 	document.body.classList.toggle('editing',editing); element('editing').setAttribute('aria-checked', String(editing));
 	element('editing').title = editing ? '表示モードに切り替える' : '編集モードに切り替える';
-	element('panes').className = editing ? 'split' : 'view'; editor.readOnly = !editing; nativeInput.disabled = !editing;
+	updatePaneLayout(); editor.readOnly = !editing; nativeInput.disabled = !editing;
 	editorEngine.hidden = !editing; element('engine').hidden = true;
 	element('slide-typography').hidden = !editing || !documentIs('slides');
 	updateSlideDebugToggle();
 	element('slide-overflow-actions').hidden = !editing;
 	for (const id of ['undo','redo','edit-mode','split-mode','view-mode','add-page','image']) {
 		element(id).hidden = !editing || (documentIs('markdown') && (id === 'add-page' || id === 'image'));
-	}
-	for (const mode of ['edit','split','view']) {
-		const button = element<HTMLButtonElement>(`${mode}-mode`);
-		const selected = mode === (editing ? 'split' : 'view');
-		button.classList.toggle('selected', selected);
-		button.setAttribute('aria-pressed', String(selected));
 	}
 	native.setActive(editing && state?.engine === 'neovim');
 	updateUndoRedo();
@@ -852,15 +861,9 @@ for (const target of [editor, nativeInput]) target.addEventListener('paste', eve
 	if (image) { event.preventDefault(); void action(() => clipboardImage(image)); return; }
 	if (target === nativeInput) { event.preventDefault(); const text = event.clipboardData?.getData('text/plain') || ''; enqueueNative(() => api.NativePaste(text)); }
 });
-for (const mode of ['edit', 'split', 'view']) element(`${mode}-mode`).onclick = () => {
-	element('panes').className = mode;
-	for (const other of ['edit','split','view']) {
-		const button = element<HTMLButtonElement>(`${other}-mode`);
-		const selected = other === mode;
-		button.classList.toggle('selected', selected);
-		button.setAttribute('aria-pressed', String(selected));
-	}
-	native.resize();
+for (const layout of ['editor','split','preview'] as PaneLayout[]) element(paneButton[layout]).onclick = () => {
+	paneLayout = layout;
+	updatePaneLayout();
 };
 const dialog = element<HTMLDialogElement>('page-dialog');
 element('add-page').onclick = () => showAppDialog(dialog);
