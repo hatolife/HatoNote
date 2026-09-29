@@ -31,8 +31,8 @@ func TestDocumentSlideConversionRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if slides.ManifestMode != bundle.ManifestModeSlides {
-		t.Fatalf("manifest mode = %q", slides.ManifestMode)
+	if slides.ManifestMode() != bundle.ManifestModeSlides {
+		t.Fatalf("manifest mode = %q", slides.ManifestMode())
 	}
 	deck, err := slides.Deck()
 	if err != nil {
@@ -56,8 +56,8 @@ func TestDocumentSlideConversionRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if restored.ManifestMode != bundle.ManifestModeDocument || restored.Entry != "docs/first.md" {
-		t.Fatalf("restored manifest mode/entry = %q / %q", restored.ManifestMode, restored.Entry)
+	if restored.ManifestMode() != bundle.ManifestModeDocument || restored.Entry != "docs/first.md" {
+		t.Fatalf("restored manifest mode/entry = %q / %q", restored.ManifestMode(), restored.Entry)
 	}
 	pages := restored.Pages()
 	if len(pages) != 2 || pages[0] != "docs/first.md" || pages[1] != "second.md" {
