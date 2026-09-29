@@ -11,6 +11,7 @@ import (
 )
 
 const normalSlideSourcePrefix = "<!-- HatoNote:normal-source "
+const legacyNormalSlideSourcePrefix = "<!-- mdz-gui:normal-source "
 const normalSlideSourceSuffix = " -->"
 
 type normalSlideSource struct {
