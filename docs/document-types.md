@@ -62,3 +62,12 @@
 - DOCTYPE-014: 文書種別からプレゼンテーションを利用できるか判定できる。
 - DOCTYPE-015: 文書種別から外部編集エンジンを利用できるか判定できる。
 - DOCTYPE-016: UIは文書種別ごとの個別条件を増やす前に、既存の能力で判定できないか確認する。
+
+
+## 判定
+
+- DOCTYPE-020: 拡張子が `.md` または `.markdown` の文書は `markdown` と判定する。
+- DOCTYPE-021: MDZ内に `slides.json` がある文書は `slides` と判定する。
+- DOCTYPE-022: MDZ内に `book.toml` があり、スライドではない文書は `mdbook` と判定する。
+- DOCTYPE-023: `markdown`、`mdbook`、`slides` のいずれにも該当しないMDZは `mdz` と判定する。
+- DOCTYPE-024: HatoNoteの文書種別判定にMDZの `manifest.mode` を使用しない。
