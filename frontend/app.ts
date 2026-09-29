@@ -1,6 +1,8 @@
 import { History, TextState } from './history.js';
 import { NativeView } from './nvim.js';
-interface Snapshot { filename: string; entry: string; pages: string[]; assets: string[]; mode: string; singleMarkdown: boolean; dirty: boolean; id: string; workDir: string; engine: string; nativeError: string }
+type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
+interface DocumentCapabilities { multiplePages: boolean; embeddedAssets: boolean; headingToc: boolean; mdbookPreview: boolean; presentation: boolean; externalEditor: boolean }
+interface Snapshot { filename: string; entry: string; pages: string[]; assets: string[]; documentType: DocumentType; capabilities: DocumentCapabilities; mode: string; singleMarkdown: boolean; dirty: boolean; id: string; workDir: string; engine: string; nativeError: string }
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
 interface BookContents { revision: string; entries: TocEntry[]; unlisted: string[]; canUndo: boolean; canRedo: boolean }
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
@@ -69,6 +71,7 @@ const preview = element<HTMLIFrameElement>('preview');
 const editorEngine = element<HTMLElement>('editor-engine');
 let current = '', changed = false, busy = false, renderID = 0, timer = 0, checkpointTimer = 0;
 let state: Snapshot;
+const documentIs = (type: DocumentType): boolean => state?.documentType === type;
 let cfg: Settings;
 let markPending: Promise<void> = Promise.resolve();
 let nativePending: Promise<void> = Promise.resolve();
@@ -190,14 +193,14 @@ function refreshTitle(): void {
 	element('filename').textContent = `${state?.id ? state.filename || '新しい文書' : ''}${unsaved ? ' ●' : ''}`;
 	const save = element<HTMLButtonElement>('save');
 	save.classList.toggle('unsaved', unsaved);
-	const saveLabel = state?.singleMarkdown ? 'Markdownを上書き保存' : '保存';
+	const saveLabel = documentIs('markdown') ? 'Markdownを上書き保存' : '保存';
 	save.title = unsaved ? `${saveLabel}（未保存の変更あり）` : saveLabel;
 	save.setAttribute('aria-label', save.title);
 	const saveAs = element<HTMLButtonElement>('save-as');
-	saveAs.title = state?.singleMarkdown ? 'MDZとして保存' : '名前を付けて保存';
+	saveAs.title = documentIs('markdown') ? 'MDZとして保存' : '名前を付けて保存';
 	saveAs.setAttribute('aria-label', saveAs.title);
-	element('save-hint').textContent = state?.singleMarkdown ? 'Ctrl+S Markdown保存 · Ctrl+Shift+S MDZとして保存 · Ctrl+O 開く' : 'Ctrl+S 保存 · Ctrl+O 開く';
-	element('current').textContent = state?.mode === 'slides' ? slidesInfo?.deck.slides.find(s=>s.file===current)?.title || current : bookInfo?.present ? contents?.entries.find(e=>e.name===current)?.title || current.split('/').pop() || '' : current;
+	element('save-hint').textContent = documentIs('markdown') ? 'Ctrl+S Markdown保存 · Ctrl+Shift+S MDZとして保存 · Ctrl+O 開く' : 'Ctrl+S 保存 · Ctrl+O 開く';
+	element('current').textContent = documentIs('slides') ? slidesInfo?.deck.slides.find(s=>s.file===current)?.title || current : bookInfo?.present ? contents?.entries.find(e=>e.name===current)?.title || current.split('/').pop() || '' : current;
 	element('current').title=current;
 	element('filename').title = state?.filename || '';
 	element('count').textContent = `${editor.value.length.toLocaleString()} 文字`;
@@ -279,12 +282,12 @@ function renderSingleMarkdown(nav: HTMLElement): void {
 async function refreshSidebar(): Promise<void> {
 	state = await api.State();
 	const nav = element('pages'); const scrollTop = element('sidebar').scrollTop;
-	if(state.mode!=='slides') { nav.replaceChildren(); slideListKey=''; }
+	if(!documentIs('slides')) { nav.replaceChildren(); slideListKey=''; }
 	if (!state.id) { refreshTitle(); return; }
 	element('document-root').textContent = '▣ ' + (state.filename.split(/[\\/]/).pop() || '新しい文書.mdz');
-	const isSlides = state.mode === 'slides';
-	const isSingle = state.singleMarkdown;
-	const isBook = !isSlides && !isSingle && !!bookInfo?.present;
+	const isSlides = documentIs('slides');
+	const isSingle = documentIs('markdown');
+	const isBook = documentIs('mdbook');
 	element('document-to-slides').hidden = !editing || isSlides || isBook || isSingle;
 	element('slides-to-document').hidden = !editing || !isSlides;
 	document.body.classList.toggle('slides-mode', isSlides);
@@ -408,7 +411,7 @@ function applyEditor(): void {
 async function reload(startEditing = false): Promise<void> {
 	element<HTMLSelectElement>('preview-kind').value='auto'; element('preview-kind').hidden=true;
 	state = await api.State(); editing = false; bookFallback = false; bookInfo=undefined; contents=undefined; tocEditing=false; tocSelected=-1;
-	if (state.singleMarkdown) documentView = 'pages';
+	if (documentIs('markdown')) documentView = 'pages';
 	element<HTMLIFrameElement>('book-preview').src='about:blank'; element('book-preview').hidden=true; preview.hidden=false;
 	closePresentation(); slideFrame.hidden=true; slidesInfo=undefined;
 	if (currentSession !== state.id) {
@@ -427,7 +430,7 @@ async function reload(startEditing = false): Promise<void> {
 }
 function updateSlideDebugToggle(): void {
 	const toggle=element<HTMLButtonElement>('slide-debug-outline');
-	toggle.hidden=!editing || state?.mode!=='slides';
+	toggle.hidden=!editing || !documentIs('slides');
 	toggle.setAttribute('aria-checked',String(slideDebugOutline));
 	toggle.title=slideDebugOutline ? '要素の枠・余白表示を消す' : '要素の枠・余白を表示する';
 }
@@ -436,11 +439,11 @@ function updateEditing(): void {
 	element('editing').title = editing ? '表示モードに切り替える' : '編集モードに切り替える';
 	element('panes').className = editing ? 'split' : 'view'; editor.readOnly = !editing; nativeInput.disabled = !editing;
 	editorEngine.hidden = !editing; element('engine').hidden = true;
-	element('slide-typography').hidden = !editing || state?.mode !== 'slides';
+	element('slide-typography').hidden = !editing || !documentIs('slides');
 	updateSlideDebugToggle();
 	element('slide-overflow-actions').hidden = !editing;
 	for (const id of ['undo','redo','edit-mode','split-mode','view-mode','add-page','image']) {
-		element(id).hidden = !editing || (state?.singleMarkdown && (id === 'add-page' || id === 'image'));
+		element(id).hidden = !editing || (documentIs('markdown') && (id === 'add-page' || id === 'image'));
 	}
 	for (const mode of ['edit','split','view']) {
 		const button = element<HTMLButtonElement>(`${mode}-mode`);
@@ -662,7 +665,7 @@ function syncScroll(source: ScrollSource, ratio: number, force = false): void {
 	if (source !== 'editor') {
 		editor.scrollTop = next * Math.max(0, editor.scrollHeight - editor.clientHeight);
 	}
-	if (source !== 'preview' && !preview.hidden && state.mode !== 'slides') {
+	if (source !== 'preview' && !preview.hidden && !documentIs('slides')) {
 		const win = preview.contentWindow;
 		const doc = preview.contentDocument;
 		if (win && doc) win.scrollTo(0, next * Math.max(0, doc.documentElement.scrollHeight - win.innerHeight));
@@ -682,7 +685,7 @@ editor.addEventListener('scroll', () => syncScroll('editor', scrollRatio(editor.
 
 async function render(): Promise<void> {
 	if (!state?.id) return;
-	if (state.mode === 'slides') { await renderSlidePreview(); return; }
+	if (documentIs('slides')) { await renderSlidePreview(); return; }
 	const summaryPreview = current === bookSummaryName();
 	if (!bookInfo?.url || bookFallback || summaryPreview) { preview.hidden=false; element("book-preview").hidden=true; }
 	const ticket = ++renderID;
@@ -698,7 +701,7 @@ async function render(): Promise<void> {
 	}
 	for (const img of doc.querySelectorAll('img')) {
 		const source = img.getAttribute('src') || '';
-		if (state.singleMarkdown) {
+		if (documentIs('markdown')) {
 			const target = resolveSingleMarkdownImage(source);
 			if (target) img.src = `${location.origin}/local-image?path=${encodeURIComponent(target)}`;
 			else { img.removeAttribute('src'); img.alt += '（外部画像は非表示）'; }
@@ -735,8 +738,8 @@ async function render(): Promise<void> {
 		if (!body || !win) return;
 		win.addEventListener('scroll', () => syncScroll('preview', scrollRatio(win.scrollY, body.documentElement.scrollHeight, win.innerHeight)), {passive:true});
 		requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
-		if (!bookInfo?.present && (state.singleMarkdown || documentView === 'pages')) {
-			if (state.singleMarkdown) renderSingleMarkdown(element('pages'));
+		if (!bookInfo?.present && (documentIs('markdown') || documentView === 'pages')) {
+			if (documentIs('markdown')) renderSingleMarkdown(element('pages'));
 			else renderMarkdownPages(element('pages'));
 			preview.contentWindow?.addEventListener('scroll', syncMarkdownHeadingHighlight, {passive:true});
 			requestAnimationFrame(syncMarkdownHeadingHighlight);
@@ -816,7 +819,7 @@ async function save(as: boolean): Promise<void> {
 	if(!state?.id) return;
 	await action(async () => {
 		await flush();
-		const single = state.singleMarkdown;
+		const single = documentIs('markdown');
 		if (await api.Save(as)) {
 			await refreshSidebar();
 			status(single ? (as ? 'MDZとして保存しました' : 'Markdownを保存しました') : '保存しました');
@@ -841,7 +844,7 @@ async function clipboardImage(file: File): Promise<void> {
 for (const target of [editor, nativeInput]) target.addEventListener('paste', event => {
 	if (busy || !editing) { event.preventDefault(); return; }
 	const image = Array.from(event.clipboardData?.items || []).find(item => item.type.startsWith('image/'))?.getAsFile();
-	if (image && state.singleMarkdown) {
+	if (image && !state.capabilities.embeddedAssets) {
 		event.preventDefault();
 		status('単一Markdownでは画像を同梱できません。MDZとして保存してから追加してください', true);
 		return;
@@ -958,11 +961,11 @@ async function showRecoveries(): Promise<void> {
 }
 element('recovery').onclick = () => void showRecoveries().catch(error => status(String(error), true));
 function markdownDropTarget(x: number, y: number): {target: string; after: boolean} | undefined {
-	if (!state?.id || state.singleMarkdown) return undefined;
+	if (!state?.id || documentIs('markdown')) return undefined;
 	const hit = document.elementFromPoint(x, y) as HTMLElement | null;
 	const nav = element('pages');
 	if (!hit || (hit !== nav && !nav.contains(hit))) return undefined;
-	if (state.mode === 'slides') {
+	if (documentIs('slides')) {
 		const card = hit.closest<HTMLElement>('.slide-card');
 		if (!card) return {target:'', after:true};
 		const bounds = card.getBoundingClientRect();
@@ -1071,8 +1074,8 @@ window.runtime.OnFileDrop((x, y, paths) => {
 	}
 	const hit = document.elementFromPoint(x, y) as HTMLElement | null;
 	const overPageList = !!hit && (hit === element('pages') || element('pages').contains(hit));
-	if (overPageList && state?.id && !state.singleMarkdown) return;
-	if (editing && state?.mode === 'slides' && paths.every(p=>/\.(png|jpe?g|gif|webp|svg)$/i.test(p))) {
+	if (overPageList && state?.id && state.capabilities.multiplePages) return;
+	if (editing && documentIs('slides') && paths.every(p=>/\.(png|jpe?g|gif|webp|svg)$/i.test(p))) {
 		void action(async()=>{ for (const path of paths) await insertImage(await api.ImportImage(path)); });
 		return;
 	}
@@ -1319,7 +1322,7 @@ function slideTypographyStyle(deck: SlideDeck, slide: Slide): string {
 function refreshSlideTypography(): void {
 	const panel=element<HTMLDetailsElement>('slide-typography');
 	const slide=selectedSlide();
-	panel.hidden=!editing || state?.mode!=='slides' || !slidesInfo || !slide;
+	panel.hidden=!editing || !documentIs('slides') || !slidesInfo || !slide;
 	if(panel.hidden || !slide || !slidesInfo)return;
 	if(panel.contains(document.activeElement) && (document.activeElement as HTMLElement).matches('input,select'))return;
 	const value=slideTypographyValues(slidesInfo.deck,slide);
@@ -1353,7 +1356,7 @@ async function renderSlidePreview(): Promise<void> {
 	const ticket = ++renderID;
 	const deck = slidesInfo.deck;
 	const html = await slideHTML(slide, editor.value);
-	if (ticket!==renderID || current!==slide.file || state.mode!=='slides') return;
+	if (ticket!==renderID || current!==slide.file || !documentIs('slides')) return;
 	preview.hidden=true; element('book-preview').hidden=true; slideFrame.hidden=false;
 	element('slide-overflow').hidden=true; refreshSlideTypography();
 	sendFrame(slideFrame, {type:'mdz-slide-render', token:ticket, slides:[{...slide, html}], theme:deck.theme, aspect:deck.aspect,marginColor:deck.marginColor||'#ffffff', ...frameTypography(deck), index:0, presentation:false, editorPreview:editing, previewNavigation:!editing, debugOutline:slideDebugOutline});
@@ -1436,7 +1439,7 @@ const splitCurrentSlide=()=>void action(()=>mutateSlide('split'));
 element('slide-split').onclick=splitCurrentSlide;
 element('slide-overflow-split').onclick=splitCurrentSlide;
 element('slide-overflow-font').onclick=()=>{const panel=element<HTMLDetailsElement>('slide-typography');panel.open=true;element<HTMLInputElement>('slide-body-size').focus();};
-element<HTMLButtonElement>('slide-debug-outline').onclick=()=>{slideDebugOutline=!slideDebugOutline;updateSlideDebugToggle();if(state?.mode==='slides'&&editing)void renderSlidePreview();};
+element<HTMLButtonElement>('slide-debug-outline').onclick=()=>{slideDebugOutline=!slideDebugOutline;updateSlideDebugToggle();if(documentIs('slides')&&editing)void renderSlidePreview();};
 function readSlideTypographyDeck(): SlideDeck | undefined {
 	if(!editing||!slidesInfo)return;
 	const number=(id:string)=>Number(element<HTMLInputElement>(id).value);
@@ -1471,7 +1474,7 @@ async function flushSlideTypography(force=false): Promise<void> {
 	const generation=slideTypographyGeneration;
 	slideTypographyDesired=undefined;
 	slideTypographyPending=slideTypographyPending.catch(()=>{}).then(async()=>{
-		if(!slidesInfo||state?.mode!=='slides')return;
+		if(!slidesInfo||!documentIs('slides'))return;
 		try {
 			const saved=await api.ConfigureSlides(slidesInfo.revision,desired);
 			if(slideTypographyGeneration===generation)slidesInfo=saved;
@@ -1538,7 +1541,7 @@ function closePresentation(): void {
 	framePayloads.delete(presentationFrame); ++presentationToken;
 	presentationFocus?.focus({preventScroll:true});
 	const slide=slidesInfo?.deck.slides[presentationIndex];
-	if(slide && !busy && state?.mode==='slides') void action(async()=>{await selectPage(slide.file);});
+	if(slide && !busy && documentIs('slides')) void action(async()=>{await selectPage(slide.file);});
 }
 function openPresentation(first: boolean): void {
 	if(!slidesInfo || busy)return;
@@ -1603,13 +1606,13 @@ let thumbnailResizeTimer=0;
 new ResizeObserver(()=>{
 	window.clearTimeout(thumbnailResizeTimer);
 	thumbnailResizeTimer=window.setTimeout(()=>{
-		if(state?.mode!=='slides'||!slidesInfo)return;
+		if(!documentIs('slides')||!slidesInfo)return;
 		const nav=element('pages'), scrollTop=element('sidebar').scrollTop;slideListKey='';renderSlideList(nav);element('sidebar').scrollTop=scrollTop;
 	},150);
 }).observe(element('sidebar'));
 
 function showSlideMenu(x:number,y:number): void {
-	if(state?.mode!=='slides')return;
+	if(!documentIs('slides'))return;
 	const menu=element('slide-context-menu');menu.replaceChildren();
 	const add=(label:string,id:string,editable=false)=>{
 		if(editable&&!editing)return;
@@ -1627,7 +1630,7 @@ function showSlideMenu(x:number,y:number): void {
 	menu.hidden=false;menu.style.left=`${Math.min(x,innerWidth-menu.offsetWidth-8)}px`;menu.style.top=`${Math.min(y,innerHeight-menu.offsetHeight-8)}px`;
 	menu.querySelector<HTMLButtonElement>('button')?.focus({preventScroll:true});
 }
-element('sidebar').addEventListener('contextmenu',event=>{if(state?.mode==='slides'){event.preventDefault();showSlideMenu(event.clientX,event.clientY);}});
+element('sidebar').addEventListener('contextmenu',event=>{if(documentIs('slides')){event.preventDefault();showSlideMenu(event.clientX,event.clientY);}});
 document.addEventListener('pointerdown',event=>{if(!element('slide-context-menu').contains(event.target as Node))element('slide-context-menu').hidden=true;});
 window.addEventListener('keydown',event=>{const menu=element('slide-context-menu');if(menu.hidden)return;if(event.key==='Escape'){menu.hidden=true;event.preventDefault();}if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();const buttons=[...menu.querySelectorAll<HTMLButtonElement>('button')];const i=buttons.indexOf(document.activeElement as HTMLButtonElement);buttons[(i+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus();}});
 
@@ -1724,14 +1727,14 @@ function slideGap(event:DragEvent):{card:HTMLElement;after:boolean}|undefined{
 	return{card:cards[cards.length-1],after:true};
 }
 element('pages').addEventListener('dragover',event=>{
-	if(state?.mode!=='slides'||!editing||(event.target as Element).closest('.slide-card'))return;
+	if(!documentIs('slides')||!editing||(event.target as Element).closest('.slide-card'))return;
 	if(!event.dataTransfer?.types.includes('application/x-mdz-slide'))return;
 	event.preventDefault();const gap=slideGap(event);if(!gap)return;
 	element('pages').querySelectorAll('.slide-insert-before,.slide-insert-after').forEach(n=>n.classList.remove('slide-insert-before','slide-insert-after'));
 	gap.card.classList.add(gap.after?'slide-insert-after':'slide-insert-before');
 });
 element('pages').addEventListener('drop',event=>{
-	if(state?.mode!=='slides'||!editing)return;
+	if(!documentIs('slides')||!editing)return;
 	const id=event.dataTransfer?.getData('application/x-mdz-slide'),gap=slideGap(event);if(!id||!gap)return;
 	event.preventDefault();event.stopPropagation();
 	element('pages').querySelectorAll('.slide-insert-before,.slide-insert-after').forEach(n=>n.classList.remove('slide-insert-before','slide-insert-after'));
