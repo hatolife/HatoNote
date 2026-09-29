@@ -11,3 +11,12 @@ html.debug-outline .reveal .slide-content{outline:2px solid rgba(225,29,72,.95)!
 html.debug-outline .reveal .slide-content>*{outline:1px dashed rgba(37,99,235,.95)!important;background-color:rgba(37,99,235,.04)!important}
 html.debug-outline .reveal .slide-content li{outline:1px dotted rgba(22,163,74,.95)!important;background-color:rgba(22,163,74,.035)!important}
 html.debug-outline .reveal .slide-content img,html.debug-outline .reveal .slide-content svg,html.debug-outline .reveal .slide-content canvas,html.debug-outline .reveal .slide-content video,html.debug-outline .reveal .slide-content table,html.debug-outline .reveal .slide-content pre,html.debug-outline .reveal .slide-content blockquote{outline:2px solid rgba(245,158,11,.95)!important}
+
+
+.slide-page-number{position:absolute;z-index:4;font:14px/1.2 "Segoe UI","Yu Gothic",Meiryo,sans-serif;color:currentColor;opacity:.7;pointer-events:none;min-width:2em;text-align:center}
+.slide-page-number[data-position=top-left]{top:18px;left:24px;text-align:left}
+.slide-page-number[data-position=top-center]{top:18px;left:50%;transform:translateX(-50%)}
+.slide-page-number[data-position=top-right]{top:18px;right:24px;text-align:right}
+.slide-page-number[data-position=bottom-left]{bottom:18px;left:24px;text-align:left}
+.slide-page-number[data-position=bottom-center]{bottom:18px;left:50%;transform:translateX(-50%)}
+.slide-page-number[data-position=bottom-right]{bottom:18px;right:24px;text-align:right}
