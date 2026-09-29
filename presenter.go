@@ -27,15 +27,19 @@ type AudienceSlide struct {
 	Layout     string `json:"layout"`
 	FontSize   int    `json:"fontSize"`
 	Background string `json:"background"`
-	HTML       string `json:"html"`
+	HTML           string `json:"html"`
+	HidePageNumber bool   `json:"hidePageNumber,omitempty"`
 }
 type PresentationState struct {
 	ID          string          `json:"id"`
 	Slides      []AudienceSlide `json:"slides,omitempty"`
 	Theme       string          `json:"theme"`
 	Aspect      string          `json:"aspect"`
-	MarginColor string          `json:"marginColor"`
-	Index       int             `json:"index"`
+	MarginColor        string          `json:"marginColor"`
+	PageNumberEnabled  bool            `json:"pageNumberEnabled"`
+	PageNumberPosition string          `json:"pageNumberPosition"`
+	PageNumberStart    int             `json:"pageNumberStart"`
+	Index              int             `json:"index"`
 	Fullscreen  bool            `json:"fullscreen"`
 	Ready       bool            `json:"ready"`
 	Closed      bool            `json:"closed"`
@@ -80,7 +84,7 @@ func (a *App) StartPresentation(slides []AudienceSlide, index int) (Presentation
 		return PresentationState{}, err
 	}
 	id := hex.EncodeToString(key)
-	p := &presentation{state: PresentationState{ID: id, Slides: slides, Theme: info.Deck.Theme, Aspect: info.Deck.Aspect, MarginColor: info.Deck.MarginColor, Index: index}, images: map[string][]byte{}}
+	p := &presentation{state: PresentationState{ID: id, Slides: slides, Theme: info.Deck.Theme, Aspect: info.Deck.Aspect, MarginColor: info.Deck.MarginColor, PageNumberEnabled: info.Deck.PageNumberEnabled, PageNumberPosition: info.Deck.PageNumberPosition, PageNumberStart: info.Deck.PageNumberStart, Index: index}, images: map[string][]byte{}}
 	// 投影側には本文ファイル、設定、ノートを配信しません。
 	for name, data := range a.session.Doc.Files {
 		switch strings.ToLower(path.Ext(name)) {
