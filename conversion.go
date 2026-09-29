@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/hatolife/HatoNote/internal/bundle"
+	"github.com/hatolife/HatoNote/internal/document"
 	"github.com/hatolife/HatoNote/internal/workspace"
 )
 
 const normalSlideSourcePrefix = "<!-- HatoNote:normal-source "
-const legacyNormalSlideSourcePrefix = "<!-- mdz-gui:normal-source "
 const normalSlideSourceSuffix = " -->"
 
 type normalSlideSource struct {
@@ -20,7 +20,6 @@ type normalSlideSource struct {
 	Page    int    `json:"page"`
 	Part    int    `json:"part"`
 	Parts   int    `json:"parts"`
-	Mode    string `json:"mode"`
 	Entry   bool   `json:"entry,omitempty"`
 }
 
@@ -56,15 +55,15 @@ func (a *App) ConvertDocumentMode(target string) error {
 	)
 	switch target {
 	case "slides":
-		if a.session.Doc.Mode == "slides" {
+		if a.documentTypeLocked() == document.Slides {
 			return nil
 		}
-		if _, ok := a.session.Doc.Files["book.toml"]; ok {
-			return fmt.Errorf("mdBookは通常MDZへ戻してから変換してください")
+		if a.documentTypeLocked() == document.MdBook {
+			return fmt.Errorf("mdBookはスライドへ直接変換できません")
 		}
 		doc, err = normalDocumentToSlides(a.session.Doc)
 	case "document":
-		if a.session.Doc.Mode != "slides" {
+		if a.documentTypeLocked() != document.Slides {
 			return nil
 		}
 		doc, err = slideDocumentToNormal(a.session.Doc)
@@ -92,7 +91,7 @@ func (a *App) ConvertDocumentMode(target string) error {
 }
 
 func normalDocumentToSlides(doc *bundle.Document) (*bundle.Document, error) {
-	if doc.Mode == "slides" {
+	if doc.HasSlides() {
 		return nil, fmt.Errorf("すでにスライド文書です")
 	}
 	if _, ok := doc.Files["book.toml"]; ok {
@@ -103,11 +102,6 @@ func normalDocumentToSlides(doc *bundle.Document) (*bundle.Document, error) {
 	if len(pages) == 0 {
 		return nil, fmt.Errorf("変換するMarkdownページがありません")
 	}
-	mode := doc.Mode
-	if mode != "project" {
-		mode = "document"
-	}
-
 	files := copyConversionAssets(doc.Files)
 	used := make(map[string]bool, len(doc.Files)+500)
 	for name := range doc.Files {
@@ -131,7 +125,6 @@ func normalDocumentToSlides(doc *bundle.Document) (*bundle.Document, error) {
 				Page:    pageIndex + 1,
 				Part:    partIndex + 1,
 				Parts:   len(parts),
-				Mode:    mode,
 				Entry:   name == doc.Entry,
 			}
 			slideFile := name
@@ -166,8 +159,7 @@ func normalDocumentToSlides(doc *bundle.Document) (*bundle.Document, error) {
 
 	manifest := conversionManifest(doc)
 	delete(manifest, bundle.PageOrderKey)
-	delete(manifest, bundle.LegacyPageOrderKey)
-	manifest["mode"], _ = json.Marshal("slides")
+	manifest["mode"], _ = json.Marshal(bundle.ManifestModeSlides)
 	manifest["entryPoint"], _ = json.Marshal(deck.Slides[0].File)
 	meta, err := json.MarshalIndent(manifest, "", "\t")
 	if err != nil {
@@ -190,7 +182,6 @@ func slideDocumentToNormal(doc *bundle.Document) (*bundle.Document, error) {
 		used[strings.ToLower(name)] = true
 	}
 
-	originalMode := ""
 	entrySource := ""
 	for _, slide := range deck.Slides {
 		text := string(doc.Files[slide.File])
@@ -200,14 +191,18 @@ func slideDocumentToNormal(doc *bundle.Document) (*bundle.Document, error) {
 			continue
 		}
 		used[strings.ToLower(meta.File)] = true
-		if originalMode == "" {
-			originalMode = meta.Mode
-		}
 		if entrySource == "" && meta.Entry {
 			entrySource = meta.File
 		}
 	}
-	if originalMode == "" {
+	knownSource := false
+	for _, item := range items {
+		if item.known {
+			knownSource = true
+			break
+		}
+	}
+	if !knownSource {
 		parts := make([]string, 0, len(items))
 		for _, item := range items {
 			parts = append(parts, item.body)
@@ -215,7 +210,7 @@ func slideDocumentToNormal(doc *bundle.Document) (*bundle.Document, error) {
 		page := claimNormalPagePath(items[0].slide.File, used)
 		files[page] = []byte(joinNormalParts(parts))
 		manifest := conversionManifest(doc)
-		manifest["mode"], _ = json.Marshal("document")
+		manifest["mode"], _ = json.Marshal(bundle.ManifestModeDocument)
 		manifest["entryPoint"], _ = json.Marshal(page)
 		manifest[bundle.PageOrderKey], _ = json.Marshal([]string{page})
 		meta, err := json.MarshalIndent(manifest, "", "\t")
@@ -225,10 +220,6 @@ func slideDocumentToNormal(doc *bundle.Document) (*bundle.Document, error) {
 		files["manifest.json"] = meta
 		return conversionDocument(files)
 	}
-	if originalMode != "project" {
-		originalMode = "document"
-	}
-
 	groups := map[string]*restoredNormalPage{}
 	order := make([]*restoredNormalPage, 0, len(items))
 	for _, item := range items {
@@ -269,7 +260,7 @@ func slideDocumentToNormal(doc *bundle.Document) (*bundle.Document, error) {
 	}
 
 	manifest := conversionManifest(doc)
-	manifest["mode"], _ = json.Marshal(originalMode)
+	manifest["mode"], _ = json.Marshal(bundle.ManifestModeDocument)
 	manifest["entryPoint"], _ = json.Marshal(entry)
 	manifest[bundle.PageOrderKey], _ = json.Marshal(pageOrder)
 	meta, err := json.MarshalIndent(manifest, "", "\t")
@@ -350,22 +341,17 @@ func normalSlideSourceFromText(text string) (normalSlideSource, string, bool) {
 	}
 	for i := 0; i < limit; i++ {
 		line := strings.TrimSpace(lines[i])
-		prefix := normalSlideSourcePrefix
-		if !strings.HasPrefix(line, prefix) {
-			prefix = legacyNormalSlideSourcePrefix
-		}
-		if !strings.HasPrefix(line, prefix) || !strings.HasSuffix(line, normalSlideSourceSuffix) {
+		if !strings.HasPrefix(line, normalSlideSourcePrefix) || !strings.HasSuffix(line, normalSlideSourceSuffix) {
 			continue
 		}
-		raw := strings.TrimSuffix(strings.TrimPrefix(line, prefix), normalSlideSourceSuffix)
+		raw := strings.TrimSuffix(strings.TrimPrefix(line, normalSlideSourcePrefix), normalSlideSourceSuffix)
 		if json.Unmarshal([]byte(raw), &meta) != nil ||
 			meta.Version != 1 ||
 			!bundle.ValidPath(meta.File) ||
 			!bundle.IsMarkdown(meta.File) ||
 			meta.Page < 1 ||
 			meta.Part < 1 ||
-			meta.Parts < meta.Part ||
-			(meta.Mode != "document" && meta.Mode != "project") {
+			meta.Parts < meta.Part {
 			return normalSlideSource{}, text, false
 		}
 		end := i + 1
