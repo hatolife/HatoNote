@@ -530,7 +530,7 @@ func (a *App) Configure(cfg settings.Settings) error {
 		a.stopBookLocked()
 	}
 	a.cfg = cfg
-	if cfg.Editor == "builtin" {
+	if cfg.Editor != "neovim" {
 		a.nativeError = ""
 	}
 	a.lastAuto = time.Now()
