@@ -157,8 +157,9 @@ export function markdownFromRenderedHTML(html: string): string {
 function canonicalNode(node: Node, preserveWhitespace = false): string {
 	if (node.nodeType === Node.TEXT_NODE) {
 		const text = node.textContent || '';
-		const value = preserveWhitespace ? text : text.replace(/\s+/g, ' ');
-		return value.trim() ? JSON.stringify(value.trim()) : '';
+		if (preserveWhitespace) return text ? JSON.stringify(text) : '';
+		const value = text.replace(/\s+/g, ' ').trim();
+		return value ? JSON.stringify(value) : '';
 	}
 	if (!(node instanceof HTMLElement)) return '';
 	const tag = node.tagName.toLowerCase();
