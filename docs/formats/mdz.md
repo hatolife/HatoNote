@@ -6,6 +6,10 @@
 - FORMAT-MDZ-002: Markdownページと画像等のアセットを同一コンテナへ格納できる。
 - FORMAT-MDZ-003: 文書内パスは相対パスとして扱う。
 - FORMAT-MDZ-004: コンテナ外へ抜けるパスを有効な文書内パスとして扱わない。
+- FORMAT-MDZ-005: `manifest.mode` は独立したアプリ状態として保持せず、保存時に文書構造から決定する。
+- FORMAT-MDZ-006: `slides.json` を持つMDZの `manifest.mode` は `slides` とする。
+- FORMAT-MDZ-007: `book.toml` を持ちスライドではないMDZの `manifest.mode` は `project` とする。
+- FORMAT-MDZ-008: それ以外のMDZの `manifest.mode` は `document` とする。
 
 ## ページ
 
