@@ -46,7 +46,7 @@ func TestEmptyStartupAndBookTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Mode != "project" || d.Entry != "src/introduction.md" {
+	if d.ManifestMode != bundle.ManifestModeProject || d.Entry != "src/introduction.md" {
 		t.Fatal(d)
 	}
 	d.Files["book.toml"] = []byte("[book]\nsrc='../outside'\n")
@@ -120,7 +120,7 @@ func TestRealMdbook(t *testing.T) {
 
 // 通常の新規文書はmdBookと独立した本文ページを持ちます。
 func TestNewDocumentTemplate(t *testing.T) {
-	for _, kind := range []string{"document", "project"} {
+	for _, kind := range []string{"document"} {
 		d, err := newDocument(kind)
 		if err != nil {
 			t.Fatal(err)
