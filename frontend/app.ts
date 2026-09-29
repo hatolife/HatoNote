@@ -1119,7 +1119,17 @@ window.setInterval(() => {
 				current = value.name; editor.value = value.text; await refreshSidebar(); await render(); updateUndoRedo();
 			}
 		}
-	} catch (error) { await refreshSidebar(); applyEditor(); if (state.engine === 'builtin') { editor.value = await api.Text(current); await render(); } status(String(error), true); }
+	} catch (error) {
+		await refreshSidebar();
+		state = await api.State();
+		applyEditor();
+		if (state.engine === 'builtin') {
+			editor.value = await api.Text(current);
+			changed = false;
+			await render();
+		}
+		status(state.nativeError || String(error), true);
+	}
 	finally { polling = false; }
 	})();
 }, 400);
