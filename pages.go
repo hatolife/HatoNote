@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"path"
 	"slices"
+	"strings"
 
 	"github.com/hatolife/HatoNote/internal/document"
 )
@@ -38,4 +40,57 @@ func (a *App) MovePage(expected []string, name, target string, after bool) error
 	}
 	order = slices.Insert(order, to, name)
 	return a.session.SetPageOrder(order)
+}
+
+
+// DuplicatePage は通常MDZのMarkdownページを複製し、元ページの直後へ挿入します。
+func (a *App) DuplicatePage(name string) (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.session == nil || a.documentTypeLocked() != document.MDZ {
+		return "", fmt.Errorf("通常MDZを開いてください")
+	}
+	if err := a.syncNativeLocked(); err != nil {
+		return "", err
+	}
+	if err := a.session.Capture(); err != nil {
+		return "", err
+	}
+	data, ok := a.session.Doc.Files[name]
+	if !ok || !strings.EqualFold(path.Ext(name), ".md") && !strings.EqualFold(path.Ext(name), ".markdown") {
+		return "", fmt.Errorf("複製するMarkdownページがありません")
+	}
+	order := a.session.Doc.Pages()
+	index := slices.Index(order, name)
+	if index < 0 {
+		return "", fmt.Errorf("複製するページが一覧にありません")
+	}
+	dir, ext := path.Dir(name), path.Ext(name)
+	if dir == "." {
+		dir = ""
+	}
+	stem := strings.TrimSuffix(path.Base(name), ext)
+	used := map[string]bool{}
+	for existing := range a.session.Doc.Files {
+		used[strings.ToLower(existing)] = true
+	}
+	candidate := ""
+	for n := 1; ; n++ {
+		suffix := "-copy"
+		if n > 1 {
+			suffix = fmt.Sprintf("-copy-%d", n)
+		}
+		candidate = path.Join(dir, stem+suffix+ext)
+		if !used[strings.ToLower(candidate)] {
+			break
+		}
+	}
+	if err := a.session.Put(candidate, append([]byte(nil), data...)); err != nil {
+		return "", err
+	}
+	order = slices.Insert(order, index+1, candidate)
+	if err := a.session.SetPageOrder(order); err != nil {
+		return "", err
+	}
+	return candidate, nil
 }
