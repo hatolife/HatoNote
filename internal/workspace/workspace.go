@@ -213,7 +213,6 @@ func (s *Session) SetPageOrder(order []string) error {
 		return err
 	}
 	manifest[bundle.PageOrderKey], _ = json.Marshal(order)
-	delete(manifest, bundle.LegacyPageOrderKey)
 	data, err := json.MarshalIndent(manifest, "", "\t")
 	if err != nil {
 		return err
