@@ -2,9 +2,9 @@
 
 ## 共通
 
-- EDITOR-001: 編集エンジンは `builtin` と `neovim` を定義する。
+- EDITOR-001: 編集エンジンは `builtin`、`wysiwyg`、`neovim` を定義する。
 - EDITOR-002: 編集エンジンは表示状態とは独立して管理する。
-- EDITOR-003: 編集中に `builtin` と `neovim` を切り替えられる。
+- EDITOR-003: 編集中に、現在の文書で利用可能な編集エンジンを切り替えられる。
 - EDITOR-004: 編集エンジンを切り替えても現在の編集内容を失わない。
 - EDITOR-005: 設定画面の編集エンジン選択は編集開始時の初期値とする。
 - EDITOR-006: 現在利用中の編集エンジンをUIから判別できる。
@@ -16,6 +16,16 @@
 - EDITOR-BUILTIN-003: Undoできない場合はUndo操作を無効表示する。
 - EDITOR-BUILTIN-004: Redoできない場合はRedo操作を無効表示する。
 - EDITOR-BUILTIN-005: `builtin` のスクロール位置をプレビューと同期できる。
+
+## wysiwyg
+
+- EDITOR-WYSIWYG-001: `wysiwyg` はMarkdownの表示結果に近い見た目のまま本文を編集できる。
+- EDITOR-WYSIWYG-002: `wysiwyg` の保存データはMarkdown本文とし、WYSIWYG専用の文書形式へ変換して保存しない。
+- EDITOR-WYSIWYG-003: `wysiwyg` は見出し、太字、斜体、取り消し線、リンク、箇条書き、番号付きリスト、引用、コード、水平線、画像を編集できる。
+- EDITOR-WYSIWYG-004: `wysiwyg` はUndoとRedoを利用できる。
+- EDITOR-WYSIWYG-005: `wysiwyg` で安全に往復変換できないMarkdownを検出した場合は、元のMarkdown本文を変更せず `builtin` で編集できる状態を維持する。
+- EDITOR-WYSIWYG-006: `wysiwyg` のスクロール位置をプレビューと同期できる。
+- EDITOR-WYSIWYG-007: `wysiwyg` の画像追加は文書種別の画像格納能力に従う。
 
 ## neovim
 

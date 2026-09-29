@@ -18,6 +18,7 @@
 - DOC-MARKDOWN-006: `markdown` は内蔵エディターを利用できる。
 - DOC-MARKDOWN-007: `markdown` はNeovimを利用できる。
 - DOC-MARKDOWN-008: `markdown` はMDZとして保存する変換操作を提供できる。
+- DOC-MARKDOWN-009: `markdown` はWYSIWYGエディターを利用できる。
 
 ## mdz
 
@@ -28,6 +29,7 @@
 - DOC-MDZ-005: `mdz` は内蔵エディターを利用できる。
 - DOC-MDZ-006: `mdz` はNeovimを利用できる。
 - DOC-MDZ-007: `mdz` はスライドへ変換できる。
+- DOC-MDZ-008: `mdz` はWYSIWYGエディターを利用できる。
 
 ## mdbook
 
@@ -39,6 +41,7 @@
 - DOC-MDBOOK-006: `mdbook` はNeovimを利用できる。
 - DOC-MDBOOK-007: `SUMMARY.md` の編集時は専用プレビューを使用できる。
 - DOC-MDBOOK-008: mdBook実行ファイルが利用できない場合でも文書内容へアクセスできる。
+- DOC-MDBOOK-009: `mdbook` はWYSIWYGエディターを提供しない。
 
 ## slides
 
@@ -51,6 +54,7 @@
 - DOC-SLIDES-007: `slides` は全画面プレゼンテーションを利用できる。
 - DOC-SLIDES-008: `slides` は2画面プレゼンテーションを利用できる。
 - DOC-SLIDES-009: `slides` は通常MDZへ変換できる。
+- DOC-SLIDES-010: `slides` はWYSIWYGエディターを提供しない。
 
 
 ## 能力
@@ -62,6 +66,7 @@
 - DOCTYPE-014: 文書種別からプレゼンテーションを利用できるか判定できる。
 - DOCTYPE-015: 文書種別から外部編集エンジンを利用できるか判定できる。
 - DOCTYPE-016: UIは文書種別ごとの個別条件を増やす前に、既存の能力で判定できないか確認する。
+- DOCTYPE-017: 文書種別からWYSIWYGエディターを利用できるか判定できる。
 
 
 ## 判定

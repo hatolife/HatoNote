@@ -60,12 +60,14 @@
 - SCR-MAIN-062: `editing` では `editor`、`split`、`preview` のペイン配置を切り替えられる。
 - SCR-MAIN-063: 操作状態の切替UIから `viewing` または `editing` を判別できる。
 - SCR-MAIN-073: 編集中のペイン配置切替UIから `editor`、`split`、`preview` を判別できる。
-- SCR-MAIN-064: 編集中は `builtin` と `neovim` をその場で切り替えられる。
+- SCR-MAIN-064: 編集中は現在の文書で利用可能な編集エンジンをその場で切り替えられる。
 - SCR-MAIN-065: 編集エンジン切替UIから現在の編集エンジンを判別できる。
 - SCR-MAIN-066: Undo操作は実行可能な場合だけ有効表示する。
 - SCR-MAIN-067: Redo操作は実行可能な場合だけ有効表示する。
 - SCR-MAIN-068: UndoとRedoは編集エンジン切替より前に配置する。
 - SCR-MAIN-069: プレビュー、内蔵エディター、Neovim、TOCの位置同期はSCROLL仕様に従う。
+- SCR-MAIN-074: WYSIWYG能力を持つ文書では編集エンジン切替にWYSIWYGを表示する。
+- SCR-MAIN-075: WYSIWYG能力を持たない文書ではWYSIWYGの切替操作を表示しない。
 
 ## 通常Markdownプレビュー
 

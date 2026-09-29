@@ -28,7 +28,7 @@
 
 ## 編集エンジン
 
-- SCR-SET-030: 編集開始時の既定編集エンジンを `builtin` または `neovim` から選択できる。
+- SCR-SET-030: 編集開始時の既定編集エンジンを `builtin`、`wysiwyg`、`neovim` から選択できる。
 - SCR-SET-031: Neovim実行ファイルのパスを指定できる。
 - SCR-SET-032: Neovim実行ファイルの存在状態を表示する。
 - SCR-SET-033: `init.lua` を使用する設定を選択できる。
@@ -44,6 +44,8 @@
 - SCR-SET-043: Neovim設定の既定値は `init.lua` を指定する設定とする。
 - SCR-SET-044: `init.lua` のパスが空欄の場合はNeovimの標準位置から自動検出する。
 - SCR-SET-045: `init.lua` を検出できない場合は設定なしで起動できる。
+- SCR-SET-046: WYSIWYGを既定編集エンジンとして選択できる。
+- SCR-SET-047: WYSIWYG非対応文書で既定編集エンジンがWYSIWYGの場合は `builtin` で編集を開始する。
 
 ## 画像
 
