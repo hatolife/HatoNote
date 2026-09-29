@@ -12,6 +12,7 @@ interface BookContents { revision: string; entries: TocEntry[]; unlisted: string
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
 interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number }
 interface Recovery { id: string; filename: string; updated: string }
+interface HistoryEntry { id: string; name: string; kind: 'backup' | 'named'; created: string; size: number }
 interface Slide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; notes: string; hidePageNumber?: boolean }
 interface SlideDeck { version: number; title: string; theme: string; aspect: string; marginColor?: string; pageNumberEnabled?: boolean; pageNumberPosition?: string; pageNumberStart?: number; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number; slides: Slide[] }
 interface SlidesInfo { deck: SlideDeck; revision: string; canUndo: boolean; canRedo: boolean }
@@ -33,7 +34,7 @@ interface Backend {
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; OpenDataFolder(): Promise<void>;
-	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>;
+	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
 	StartNative(): Promise<boolean>; NativeOpen(name: string): Promise<void>;
 	NativePoll(): Promise<{name: string; text: string; changed: boolean; canUndo: boolean; canRedo: boolean}>;
 	NativeInput(keys: string): Promise<void>; NativePaste(text: string): Promise<void>; NativeUndo(redo: boolean): Promise<void>;
@@ -533,6 +534,7 @@ async function reload(startEditing = false): Promise<void> {
 	}
 	element('welcome').hidden = !!state.id; element('workspace').hidden = !state.id; element('editing').hidden = !state.id;
 	for (const id of ['save','save-as','sidebar-toggle','search']) element(id).hidden = !state.id;
+	element('history').hidden = !state.id || !state.filename;
 	updateEditing();
 	if (!state.id) { current = ''; refreshTitle(); return; }
 	if (startEditing) { editing = true; activeEngine = initialEditorEngine(); if (activeEngine === 'neovim') await api.StartNative(); state = await api.State(); updateEditing(); }
@@ -1189,11 +1191,75 @@ element('settings-save').onclick = () => {
 		settingsDialog.close(); status('設定を保存しました');
 	});
 };
+const historyDialog = element<HTMLDialogElement>('history-dialog');
+const historyList = element<HTMLElement>('history-list');
+const namedVersionName = element<HTMLInputElement>('named-version-name');
+function formatHistorySize(size: number): string {
+	if (size < 1024) return `${size} B`;
+	if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KiB`;
+	return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
+}
+async function refreshHistoryList(): Promise<void> {
+	const entries = await api.History();
+	historyList.replaceChildren();
+	if (!entries.length) {
+		const empty = document.createElement('p');
+		empty.className = 'history-empty';
+		empty.textContent = '履歴はまだありません。';
+		historyList.append(empty);
+		return;
+	}
+	for (const entry of entries) {
+		const row = document.createElement('div');
+		row.className = 'history-entry';
+		const info = document.createElement('div');
+		const name = document.createElement('strong');
+		name.textContent = entry.kind === 'named' ? entry.name : '自動バックアップ';
+		const meta = document.createElement('small');
+		meta.textContent = `${entry.kind === 'named' ? '名前付き世代' : '自動バックアップ'} · ${new Date(entry.created).toLocaleString()} · ${formatHistorySize(entry.size)}`;
+		info.append(name, meta);
+		const restore = document.createElement('button');
+		restore.type = 'button';
+		restore.textContent = 'この状態を復元';
+		restore.onclick = () => void action(async () => {
+			await flush();
+			if (await api.RestoreHistory(entry.id)) {
+				historyDialog.close();
+				await reload(true);
+				status('履歴を復元しました。確認して保存してください');
+			}
+		});
+		row.append(info, restore);
+		historyList.append(row);
+	}
+}
+function showHistory(): void {
+	if (!state?.filename) return;
+	namedVersionName.value = '';
+	showAppDialog(historyDialog);
+	void refreshHistoryList().catch(error => status(String(error), true));
+}
+element('create-named-version').onclick = () => void action(async () => {
+	await flush();
+	const name = namedVersionName.value.trim();
+	if (!name) {
+		namedVersionName.focus();
+		status('世代名を入力してください', true);
+		return;
+	}
+	await api.CreateNamedVersion(name);
+	namedVersionName.value = '';
+	await refreshHistoryList();
+	status('名前付き世代を保存しました');
+});
+element('history').onclick = () => runCommand('document.history');
+
 commands.register({id:'document.new', title:'新規文書', execute:()=>showAppDialog(newDialog)});
 commands.register({id:'document.open', title:'文書を開く', shortcut:'Ctrl+O', execute:()=>action(async()=>{await flush(); if(await api.Open('')) await reload();})});
 commands.register({id:'document.save', title:'保存', shortcut:'Ctrl+S', enabled:()=>!!state?.id, execute:()=>save(false)});
 commands.register({id:'document.saveAs', title:'名前を付けて保存', shortcut:'Ctrl+Shift+S', enabled:()=>!!state?.id, execute:()=>save(true)});
 commands.register({id:'document.search', title:'文書内検索', shortcut:'Ctrl+F', enabled:()=>!!state?.id, execute:showSearch});
+commands.register({id:'document.history', title:'バックアップ履歴', enabled:()=>!!state?.filename, execute:showHistory});
 commands.register({id:'help.markdownCheatsheet', title:'Markdown早見表', shortcut:'Ctrl+/', enabled:()=>editing, execute:showMarkdownCheatsheet});
 commands.register({id:'app.settings', title:'設定', execute:showSettings});
 
