@@ -16,4 +16,7 @@ func TestNewSlideDeckDefaults(t *testing.T) {
 	if deck.H1FontSize != 42 || deck.H2FontSize != 28 || deck.H3FontSize != 26 || deck.H4FontSize != 24 || deck.H5FontSize != 22 {
 		t.Fatalf("unexpected heading defaults: %+v", deck)
 	}
+	if deck.PageNumberEnabled || deck.PageNumberPosition != "bottom-right" || deck.PageNumberStart != 1 {
+		t.Fatalf("unexpected page number defaults: %+v", deck)
+	}
 }
