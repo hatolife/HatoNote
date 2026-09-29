@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	stdhtml "html"
 	"mime"
@@ -29,18 +30,12 @@ func cloneExportDocument(doc *bundle.Document) *bundle.Document {
 	for name, data := range doc.Files {
 		files[name] = append([]byte(nil), data...)
 	}
-	manifest := make(map[string][]byte, len(doc.Manifest))
+	manifest := make(map[string]json.RawMessage, len(doc.Manifest))
 	for key, value := range doc.Manifest {
-		manifest[key] = append([]byte(nil), value...)
+		manifest[key] = append(json.RawMessage(nil), value...)
 	}
-	rawManifest := make(map[string]jsonRawMessage, len(manifest))
-	for key, value := range manifest {
-		rawManifest[key] = jsonRawMessage(value)
-	}
-	return &bundle.Document{Files: files, Manifest: rawManifest, Entry: doc.Entry}
+	return &bundle.Document{Files: files, Manifest: manifest, Entry: doc.Entry}
 }
-
-type jsonRawMessage = []byte
 
 func exportDocumentTitle(filename string, doc *bundle.Document) string {
 	if doc != nil && doc.HasSlides() {
