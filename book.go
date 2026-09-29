@@ -72,7 +72,7 @@ func newDocument(kind string) (*bundle.Document, error) {
 	switch kind {
 	case "slides":
 		return bundle.NewSlides()
-	case "document":
+	case "mdz":
 		d.Files = map[string][]byte{"本文.md": []byte("# 新しい文書\n\n編集モードでは、この文章を書き換えて文書を作成できます。\n\n右上の「表示 / 編集」で、読みやすい表示と編集を切り替えられます。\n\n画像やページを追加して、ひとつのMDZファイルに保存できます。\n")}
 		d.Entry = "本文.md"
 		return d, nil
