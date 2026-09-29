@@ -18,6 +18,7 @@ type Capabilities struct {
 	MdBookPreview  bool `json:"mdbookPreview"`
 	Presentation   bool `json:"presentation"`
 	ExternalEditor bool `json:"externalEditor"`
+	WYSIWYGEditor bool `json:"wysiwygEditor"`
 }
 
 // Detect はファイル名とHatoNote固有の文書構造から文書種別を判定します。
@@ -40,9 +41,9 @@ func Detect(filename string, doc *bundle.Document) Type {
 func (t Type) Capabilities() Capabilities {
 	switch t {
 	case Markdown:
-		return Capabilities{HeadingTOC: true, ExternalEditor: true}
+		return Capabilities{HeadingTOC: true, ExternalEditor: true, WYSIWYGEditor: true}
 	case MDZ:
-		return Capabilities{MultiplePages: true, EmbeddedAssets: true, HeadingTOC: true, ExternalEditor: true}
+		return Capabilities{MultiplePages: true, EmbeddedAssets: true, HeadingTOC: true, ExternalEditor: true, WYSIWYGEditor: true}
 	case MdBook:
 		return Capabilities{MultiplePages: true, EmbeddedAssets: true, MdBookPreview: true, ExternalEditor: true}
 	case Slides:
