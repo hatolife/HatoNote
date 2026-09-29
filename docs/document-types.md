@@ -54,7 +54,7 @@
 - DOC-SLIDES-007: `slides` は全画面プレゼンテーションを利用できる。
 - DOC-SLIDES-008: `slides` は2画面プレゼンテーションを利用できる。
 - DOC-SLIDES-009: `slides` は通常MDZへ変換できる。
-- DOC-SLIDES-010: `slides` はWYSIWYGエディターを提供しない。
+- DOC-SLIDES-010: `slides` はWYSIWYGエディターを利用できる。
 
 
 ## 能力
