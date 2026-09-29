@@ -36,12 +36,11 @@ type Document struct {
 	Files    map[string][]byte
 	Manifest map[string]json.RawMessage
 	Entry    string
-	ManifestMode ManifestMode
 }
 
 // New は新規文書を作成します。
 func New() *Document {
-	return &Document{Files: map[string][]byte{"index.md": []byte("# 新しい文書\n\nここから書き始めます。\n")}, Manifest: map[string]json.RawMessage{}, Entry: "index.md", ManifestMode: ManifestModeDocument}
+	return &Document{Files: map[string][]byte{"index.md": []byte("# 新しい文書\n\nここから書き始めます。\n")}, Manifest: map[string]json.RawMessage{}, Entry: "index.md"}
 }
 
 // ValidPath はZIP内のパスをOSに依存せず検査します。
@@ -67,6 +66,20 @@ func IsMarkdown(name string) bool {
 	return ext == ".md" || ext == ".markdown"
 }
 
+
+// ManifestMode は現在のHatoNote文書構造からMDZipのmanifest.modeを導出します。
+func (d *Document) ManifestMode() ManifestMode {
+	if d == nil {
+		return ManifestModeDocument
+	}
+	if d.HasSlides() {
+		return ManifestModeSlides
+	}
+	if _, ok := d.Files["book.toml"]; ok {
+		return ManifestModeProject
+	}
+	return ManifestModeDocument
+}
 
 // HasSlides はHatoNoteのスライド構造を持つかを返します。
 func (d *Document) HasSlides() bool {
@@ -142,7 +155,8 @@ func resolve(d *Document) (*Document, error) {
 			return nil, fmt.Errorf("manifest.jsonが不正です")
 		}
 		if v, ok := d.Manifest["mode"]; ok {
-			if err := json.Unmarshal(v, &d.ManifestMode); err != nil || (d.ManifestMode != ManifestModeDocument && d.ManifestMode != ManifestModeProject && d.ManifestMode != ManifestModeSlides) {
+			var mode ManifestMode
+			if err := json.Unmarshal(v, &mode); err != nil || (mode != ManifestModeDocument && mode != ManifestModeProject && mode != ManifestModeSlides) {
 				return nil, fmt.Errorf("ERR_MODE_UNSUPPORTED")
 			}
 		}
@@ -272,7 +286,7 @@ func (d *Document) Write(filename, version string) error {
 	set := func(k string, v any) { manifest[k], _ = json.Marshal(v) }
 	set("spec", map[string]string{"name": "mdzip-spec", "version": "1.1.0"})
 	set("entryPoint", d.Entry)
-	set("mode", d.ManifestMode)
+	set("mode", d.ManifestMode())
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if _, ok := manifest["created"]; !ok {
 		set("created", map[string]string{"when": now})
