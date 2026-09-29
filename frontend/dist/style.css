@@ -530,3 +530,46 @@ footer #status { flex: 1; }
 	color: var(--muted);
 	font-size: 12px;
 }
+
+
+/* Command palette */
+#command-palette-dialog {
+	width: min(680px, calc(100vw - 48px));
+	max-height: min(720px, calc(100vh - 72px));
+	overflow: hidden;
+}
+#command-palette-input {
+	width: 100%;
+	margin: 14px 0 10px;
+}
+#command-palette-list {
+	display: grid;
+	gap: 5px;
+	max-height: 52vh;
+	overflow: auto;
+}
+.command-palette-item {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 18px;
+	width: 100%;
+	padding: 10px 12px;
+	text-align: left;
+	border: 1px solid transparent;
+	background: transparent;
+}
+.command-palette-item:hover:not(:disabled),
+.command-palette-item:focus-visible {
+	background: var(--active);
+	border-color: var(--line);
+}
+.command-palette-item:disabled {
+	opacity: .42;
+	cursor: default;
+}
+.command-palette-item small {
+	color: var(--muted);
+	font: 10px/1.4 Consolas, monospace;
+	white-space: nowrap;
+}
