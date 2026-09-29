@@ -574,7 +574,7 @@ func (a *App) StartNative() bool {
 	}
 	e, err := editor.Start(a.session.Content(), filepath.Join(a.session.Root, "undo"), a.cfg, a.emit)
 	if err != nil {
-		a.nativeError = "Neovimを起動できないため内蔵エディターを使用します。設定から実行ファイルを指定してください: " + err.Error()
+		a.nativeError = "Neovimを利用できないため内蔵エディターを使用します: " + err.Error()
 		log.Printf("%s", a.nativeError)
 		return false
 	}
