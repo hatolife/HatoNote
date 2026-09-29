@@ -55,6 +55,8 @@
 - DOC-SLIDES-008: `slides` は2画面プレゼンテーションを利用できる。
 - DOC-SLIDES-009: `slides` は通常MDZへ変換できる。
 - DOC-SLIDES-010: `slides` はWYSIWYGエディターを利用できる。
+- DOC-SLIDES-011: `slides` は1スライドにつき1つのMarkdownファイルを参照する。
+- DOC-SLIDES-012: 複数のスライドが同じMarkdownファイルを共有しない。
 
 
 ## 能力
