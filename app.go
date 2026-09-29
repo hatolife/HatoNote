@@ -563,6 +563,52 @@ func (a *App) Recover(id string) (bool, error) {
 	return true, nil
 }
 
+// History は現在の保存済み文書に対応する履歴を返します。
+func (a *App) History() ([]workspace.HistoryEntry, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.session == nil || a.session.Filename == "" {
+		return []workspace.HistoryEntry{}, nil
+	}
+	return workspace.History(a.base, a.session.Filename)
+}
+
+// CreateNamedVersion は現在の作業状態を通常保存とは別の名前付き世代へ保存します。
+func (a *App) CreateNamedVersion(name string) (workspace.HistoryEntry, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.session == nil {
+		return workspace.HistoryEntry{}, fmt.Errorf("文書を開いてください")
+	}
+	if err := a.syncNativeLocked(); err != nil {
+		return workspace.HistoryEntry{}, err
+	}
+	return a.session.SaveNamedVersion(a.base, version, name)
+}
+
+// RestoreHistory は履歴を現在の作業状態へ復元し、未保存状態として開きます。
+func (a *App) RestoreHistory(id string) (bool, error) {
+	if !a.discardAllowed() {
+		return false, nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.session == nil || a.session.Filename == "" {
+		return false, fmt.Errorf("保存済み文書を開いてください")
+	}
+	filename := a.session.Filename
+	doc, err := workspace.LoadHistory(a.base, filename, id)
+	if err != nil {
+		return false, err
+	}
+	session, err := workspace.New(a.base, doc, filename, true)
+	if err != nil {
+		return false, err
+	}
+	a.adoptLocked(session)
+	return true, nil
+}
+
 func (a *App) StartNative() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
