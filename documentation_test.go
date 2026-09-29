@@ -8,7 +8,8 @@ import (
 	"testing"
 )
 
-var specificationIDPattern = regexp.MustCompile(`^[A-Z][A-Z0-9-]*-[0-9]{3}:`)\nvar emphasisPattern = regexp.MustCompile(`(^|[[:space:]（(])([*][^*\\n]+[*]|_[^_\\n]+_)($|[[:space:]）).,、。])`)
+var specificationIDPattern = regexp.MustCompile(`^[A-Z][A-Z0-9-]*-[0-9]{3}:`)
+var emphasisPattern = regexp.MustCompile(`(^|[[:space:]（(])([*][^*\n]+[*]|_[^_\n]+_)($|[[:space:]）).,、。])`)
 
 // TestSpecificationDocuments は仕様書が条件列挙の形式を維持していることを確認します。
 func TestSpecificationDocuments(t *testing.T) {
@@ -34,7 +35,10 @@ func checkSpecificationDocument(t *testing.T, path, text string) {
 			continue
 		}
 		if inCode || trimmed == "" || strings.HasPrefix(trimmed, "#") { continue; }
-		if strings.HasPrefix(trimmed, ">") { t.Errorf("%s:%d: 引用記法は使用しません", path, index+1); }\n\t\tif strings.Contains(trimmed, "**") { t.Errorf("%s:%d: 太字記法は使用しません", path, index+1); }\n\t\tif emphasisPattern.MatchString(stripInlineCode(trimmed)) { t.Errorf("%s:%d: 斜体記法は使用しません", path, index+1); }\n		if !strings.HasPrefix(trimmed, "- ") {
+		if strings.HasPrefix(trimmed, ">") { t.Errorf("%s:%d: 引用記法は使用しません", path, index+1); }
+		if strings.Contains(trimmed, "**") { t.Errorf("%s:%d: 太字記法は使用しません", path, index+1); }
+		if emphasisPattern.MatchString(stripInlineCode(trimmed)) { t.Errorf("%s:%d: 斜体記法は使用しません", path, index+1); }
+		if !strings.HasPrefix(trimmed, "- ") {
 			t.Errorf("%s:%d: 仕様は箇条書きの条件として記述します", path, index+1)
 			continue
 		}
