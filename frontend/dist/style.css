@@ -577,3 +577,7 @@ footer #status { flex: 1; }
 	font: 10px/1.4 Consolas, monospace;
 	white-space: nowrap;
 }
+
+
+.slide-page-number-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:700px){.slide-page-number-grid{grid-template-columns:1fr}}
