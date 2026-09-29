@@ -24,6 +24,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/hatolife/HatoNote/internal/bundle"
 	"github.com/hatolife/HatoNote/internal/editor"
+	"github.com/hatolife/HatoNote/internal/document"
 	"github.com/hatolife/HatoNote/internal/settings"
 	"github.com/hatolife/HatoNote/internal/workspace"
 )
@@ -65,11 +66,9 @@ type Snapshot struct {
 	Filename       string   `json:"filename"`
 	Entry          string   `json:"entry"`
 	Pages          []string `json:"pages"`
-	Assets         []string             `json:"assets"`
-	DocumentType   DocumentType         `json:"documentType"`
-	Capabilities   DocumentCapabilities `json:"capabilities"`
-	Mode           string               `json:"mode"`           // 互換用。新しいUI判定にはDocumentTypeを使用する。
-	SingleMarkdown bool                 `json:"singleMarkdown"` // 互換用。新しいUI判定にはDocumentTypeを使用する。
+	Assets       []string              `json:"assets"`
+	DocumentType document.Type          `json:"documentType"`
+	Capabilities document.Capabilities  `json:"capabilities"`
 	Dirty          bool     `json:"dirty"`
 	ID             string   `json:"id"`
 	WorkDir        string   `json:"workDir"`
@@ -99,13 +98,11 @@ func (a *App) emit(event string, data any) {
 func (a *App) Initial() string { return a.initial }
 func (a *App) Version() string { return version }
 
-func (a *App) documentTypeLocked() DocumentType {
-	if a.session == nil { return ""; }
-	return DetectDocumentType(a.session.Filename, a.session.Doc)
-}
-
-func (a *App) singleMarkdownLocked() bool {
-	return a.documentTypeLocked() == DocumentTypeMarkdown
+func (a *App) documentTypeLocked() document.Type {
+	if a.session == nil {
+		return ""
+	}
+	return document.Detect(a.session.Filename, a.session.Doc)
 }
 
 func (a *App) State() Snapshot {
@@ -115,7 +112,7 @@ func (a *App) State() Snapshot {
 		return Snapshot{Pages: []string{}, Assets: []string{}, Engine: "builtin"}
 	}
 	documentType := a.documentTypeLocked()
-	s := Snapshot{Filename: a.session.Filename, Entry: a.session.Doc.Entry, Pages: a.session.Doc.Pages(), Assets: []string{}, DocumentType: documentType, Capabilities: documentType.Capabilities(), Mode: a.session.Doc.Mode, SingleMarkdown: documentType == DocumentTypeMarkdown, Dirty: a.session.Dirty || a.pending.Load(), ID: a.session.ID, WorkDir: a.session.Content(), Engine: "builtin", NativeError: a.nativeError}
+	s := Snapshot{Filename: a.session.Filename, Entry: a.session.Doc.Entry, Pages: a.session.Doc.Pages(), Assets: []string{}, DocumentType: documentType, Capabilities: documentType.Capabilities(), Dirty: a.session.Dirty || a.pending.Load(), ID: a.session.ID, WorkDir: a.session.Content(), Engine: "builtin", NativeError: a.nativeError}
 	if a.native != nil {
 		s.Engine = "neovim"
 	}
@@ -381,11 +378,12 @@ func (a *App) AddPage(name string) error {
 	if a.session == nil {
 		return fmt.Errorf("文書を開いてください")
 	}
-	if a.singleMarkdownLocked() {
-		return fmt.Errorf("単一Markdownではページを追加できません。MDZとして保存してから追加してください")
-	}
-	if a.documentTypeLocked() == DocumentTypeSlides {
+	documentType := a.documentTypeLocked()
+	if documentType == document.Slides {
 		return fmt.Errorf("スライドを追加してください")
+	}
+	if !documentType.Capabilities().MultiplePages {
+		return fmt.Errorf("この文書種別ではページを追加できません")
 	}
 	// 拡張子を省略したページ名には.mdを補います。
 	name = strings.TrimSpace(name)
@@ -461,7 +459,7 @@ func (a *App) saveLocked(filename string) error {
 		return err
 	}
 	if bundle.IsMarkdown(abs) {
-		if !a.singleMarkdownLocked() {
+		if a.documentTypeLocked() != document.Markdown {
 			return fmt.Errorf("通常のMDZはMarkdownファイルへ直接保存できません")
 		}
 		if err := a.session.SaveMarkdown(a.base, abs, a.cfg); err != nil {
@@ -729,7 +727,7 @@ func (a *App) ImportImage(filename string) (string, error) {
 	return a.storeImageLocked(b, ext)
 }
 func (a *App) storeImageLocked(b []byte, ext string) (string, error) {
-	if a.singleMarkdownLocked() {
+	if !a.documentTypeLocked().Capabilities().EmbeddedAssets {
 		return "", fmt.Errorf("単一Markdownでは画像を同梱できません。MDZとして保存してから追加してください")
 	}
 	now := time.Now()
@@ -801,7 +799,7 @@ func (a *App) serveLocalMarkdownImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.Lock()
-	if !a.singleMarkdownLocked() {
+	if a.documentTypeLocked() != document.Markdown {
 		a.mu.Unlock()
 		http.NotFound(w, r)
 		return
