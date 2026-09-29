@@ -72,6 +72,7 @@
 - SCR-MAIN-076: 編集中はMarkdownチートシートをボタンから表示できる。
 - SCR-MAIN-077: 編集中はキーボードショートカットからMarkdownチートシートを表示できる。
 - SCR-MAIN-078: Markdownチートシートは現在の編集内容を変更しないオーバーレイとして表示する。
+- SCR-MAIN-079: WYSIWYG編集中は編集面の上部に書式バーを常設する。
 - SCR-MAIN-074: WYSIWYG能力を持つ文書では編集エンジン切替にWYSIWYGを表示する。
 - SCR-MAIN-075: WYSIWYG能力を持たない文書ではWYSIWYGの切替操作を表示しない。
 
