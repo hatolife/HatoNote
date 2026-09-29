@@ -17,3 +17,11 @@
 ## 判別
 
 - FORMAT-MDZ-020: mdBookまたはスライドの識別情報がないMDZを通常MDZとして扱う。
+
+
+## 新規文書
+
+- FORMAT-MDZ-030: 新規通常MDZの最初のページ名は `本文.md` とする。
+- FORMAT-MDZ-031: 新規通常MDZでmdBook由来の `index.md` を既定ページ名として使用しない。
+- FORMAT-MDZ-032: 新規通常MDZの最初のページにHatoNoteで編集できることを示す短い案内を含める。
+- FORMAT-MDZ-033: 新規通常MDZは作成直後に編集を開始できる。
