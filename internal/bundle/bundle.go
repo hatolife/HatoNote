@@ -21,6 +21,9 @@ const MaxFile = 32 << 20
 const MaxTotal = 128 << 20
 const MaxEntries = 4096
 
+const PageOrderKey = "x-hatonote-pageOrder"
+const LegacyPageOrderKey = "x-mdz-gui-pageOrder"
+
 // Document は未知の添付ファイルとmanifestのフィールドも保持します。
 type Document struct {
 	Files    map[string][]byte
@@ -220,7 +223,11 @@ func (d *Document) Pages() []string {
 	sort.Strings(names)
 	// 独自の表示順を優先し、外部で追加されたページは末尾へ補います。
 	var order []string
-	if json.Unmarshal(d.Manifest["x-HatoNote-pageOrder"], &order) == nil {
+	rawOrder := d.Manifest[PageOrderKey]
+	if len(rawOrder) == 0 {
+		rawOrder = d.Manifest[LegacyPageOrderKey]
+	}
+	if json.Unmarshal(rawOrder, &order) == nil {
 		remaining := make(map[string]bool, len(names))
 		for _, name := range names {
 			remaining[name] = true
