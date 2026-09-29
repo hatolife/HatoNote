@@ -13,6 +13,7 @@ interface BookInfo { present: boolean; title: string; detected: boolean; source:
 interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number }
 interface Recovery { id: string; filename: string; updated: string }
 interface HistoryEntry { id: string; name: string; kind: 'backup' | 'named'; created: string; size: number }
+interface HistoryPageDiff { page: string; status: 'added' | 'deleted' | 'modified'; history: string; current: string }
 interface Slide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; notes: string; hidePageNumber?: boolean }
 interface SlideDeck { version: number; title: string; theme: string; aspect: string; marginColor?: string; pageNumberEnabled?: boolean; pageNumberPosition?: string; pageNumberStart?: number; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number; slides: Slide[] }
 interface SlidesInfo { deck: SlideDeck; revision: string; canUndo: boolean; canRedo: boolean }
@@ -34,7 +35,7 @@ interface Backend {
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; OpenDataFolder(): Promise<void>;
-	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
+	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; HistoryDiff(id: string): Promise<HistoryPageDiff[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
 	StartNative(): Promise<boolean>; NativeOpen(name: string): Promise<void>;
 	NativePoll(): Promise<{name: string; text: string; changed: boolean; canUndo: boolean; canRedo: boolean}>;
 	NativeInput(keys: string): Promise<void>; NativePaste(text: string): Promise<void>; NativeUndo(redo: boolean): Promise<void>;
@@ -1193,6 +1194,7 @@ element('settings-save').onclick = () => {
 };
 const historyDialog = element<HTMLDialogElement>('history-dialog');
 const historyList = element<HTMLElement>('history-list');
+const historyDiff = element<HTMLElement>('history-diff');
 const namedVersionName = element<HTMLInputElement>('named-version-name');
 function formatHistorySize(size: number): string {
 	if (size < 1024) return `${size} B`;
@@ -1218,6 +1220,12 @@ async function refreshHistoryList(): Promise<void> {
 		const meta = document.createElement('small');
 		meta.textContent = `${entry.kind === 'named' ? '名前付き世代' : '自動バックアップ'} · ${new Date(entry.created).toLocaleString()} · ${formatHistorySize(entry.size)}`;
 		info.append(name, meta);
+		const actions = document.createElement('div');
+		actions.className = 'history-actions';
+		const diff = document.createElement('button');
+		diff.type = 'button';
+		diff.textContent = '差分';
+		diff.onclick = () => void showHistoryDiff(entry);
 		const restore = document.createElement('button');
 		restore.type = 'button';
 		restore.textContent = 'この状態を復元';
@@ -1229,13 +1237,51 @@ async function refreshHistoryList(): Promise<void> {
 				status('履歴を復元しました。確認して保存してください');
 			}
 		});
-		row.append(info, restore);
+		actions.append(diff, restore);
+		row.append(info, actions);
 		historyList.append(row);
+	}
+}
+async function showHistoryDiff(entry: HistoryEntry): Promise<void> {
+	await flush();
+	const pages = await api.HistoryDiff(entry.id);
+	historyDiff.replaceChildren();
+	const heading = document.createElement('h3');
+	heading.textContent = `${entry.kind === 'named' ? entry.name : '自動バックアップ'}との差分`;
+	historyDiff.append(heading);
+	if (!pages.length) {
+		const empty = document.createElement('p');
+		empty.className = 'history-empty';
+		empty.textContent = 'Markdown本文の差分はありません。';
+		historyDiff.append(empty);
+		return;
+	}
+	const statusLabel: Record<HistoryPageDiff['status'], string> = {added:'追加',deleted:'削除',modified:'変更'};
+	for (const [index, page] of pages.entries()) {
+		const details = document.createElement('details');
+		details.className = 'history-diff-page';
+		details.open = index === 0;
+		const summary = document.createElement('summary');
+		summary.textContent = `[${statusLabel[page.status]}] ${page.page}`;
+		const columns = document.createElement('div');
+		columns.className = 'history-diff-columns';
+		for (const [label, text] of [['履歴', page.history], ['現在', page.current]] as const) {
+			const section = document.createElement('section');
+			const title = document.createElement('h4');
+			title.textContent = label;
+			const pre = document.createElement('pre');
+			pre.textContent = text || '（なし）';
+			section.append(title, pre);
+			columns.append(section);
+		}
+		details.append(summary, columns);
+		historyDiff.append(details);
 	}
 }
 function showHistory(): void {
 	if (!state?.filename) return;
 	namedVersionName.value = '';
+	historyDiff.replaceChildren();
 	showAppDialog(historyDialog);
 	void refreshHistoryList().catch(error => status(String(error), true));
 }
