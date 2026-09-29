@@ -1,13 +1,15 @@
 import { History, TextState } from './history.js';
 import { NativeView } from './nvim.js';
+import { WysiwygEditor, equivalentRenderedHTML, markdownFromRenderedHTML, renderedHTMLHasOmittedRawHTML } from './wysiwyg.js';
 type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
 type PaneLayout = 'editor' | 'split' | 'preview';
-interface DocumentCapabilities { multiplePages: boolean; embeddedAssets: boolean; headingToc: boolean; mdbookPreview: boolean; presentation: boolean; externalEditor: boolean }
+type EditorEngine = 'builtin' | 'wysiwyg' | 'neovim';
+interface DocumentCapabilities { multiplePages: boolean; embeddedAssets: boolean; headingToc: boolean; mdbookPreview: boolean; presentation: boolean; externalEditor: boolean; wysiwygEditor: boolean }
 interface Snapshot { filename: string; entry: string; pages: string[]; assets: string[]; documentType: DocumentType; capabilities: DocumentCapabilities; dirty: boolean; id: string; workDir: string; engine: string; nativeError: string }
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
 interface BookContents { revision: string; entries: TocEntry[]; unlisted: string[]; canUndo: boolean; canRedo: boolean }
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
-interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: string; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number }
+interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number }
 interface Recovery { id: string; filename: string; updated: string }
 interface Slide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; notes: string }
 interface SlideDeck { version: number; title: string; theme: string; aspect: string; marginColor?: string; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number; slides: Slide[] }
@@ -70,6 +72,10 @@ const editor = element<HTMLTextAreaElement>('editor');
 const nativeInput = element<HTMLTextAreaElement>('native-input');
 const preview = element<HTMLIFrameElement>('preview');
 const editorEngine = element<HTMLElement>('editor-engine');
+const wysiwygRoot = element<HTMLElement>('wysiwyg');
+const wysiwygContent = element<HTMLElement>('wysiwyg-content');
+const wysiwygToolbar = element<HTMLElement>('wysiwyg-toolbar');
+const wysiwygBlock = element<HTMLSelectElement>('wysiwyg-block');
 let current = '', changed = false, busy = false, renderID = 0, timer = 0, checkpointTimer = 0;
 let state: Snapshot;
 const documentIs = (type: DocumentType): boolean => state?.documentType === type;
@@ -80,7 +86,8 @@ let nativeSaveRequested = false;
 let activePoll: Promise<void> = Promise.resolve();
 let composing = false;
 let compositionBefore: TextState | undefined;
-let activeEngine = '';
+let activeEngine: EditorEngine = 'builtin';
+let lastAppliedEngine: EditorEngine | '' = '';
 let nativeCanUndo = false;
 let nativeCanRedo = false;
 let scrollSyncLocked = false;
@@ -116,6 +123,16 @@ let slideTypographyPending: Promise<void> = Promise.resolve();
 const slideFrame = element<HTMLIFrameElement>('slide-preview');
 const presentationFrame = element<HTMLIFrameElement>('presentation-frame');
 const framePayloads = new Map<HTMLIFrameElement, Record<string, unknown>>();
+const wysiwyg = new WysiwygEditor(wysiwygRoot, wysiwygContent, wysiwygToolbar, wysiwygBlock, {
+	onChange: (before, after, kind) => {
+		editor.value = after;
+		history().record({text:before,start:0,end:0}, {text:after,start:0,end:0}, kind);
+		edited(); updateUndoRedo();
+	},
+	onSeparate: () => { if (cfg) history().separate(); },
+	onUndo: redo => undo(redo),
+	resolveImage: reference => resolveEditorImage(reference),
+});
 
 function status(message: string, error = false): void { element('status').textContent = message; element('status').title = message; element('status').classList.toggle('error', error); }
 function history(): History { let h = histories.get(current); if (!h) { h = new History(cfg.undoLevels); histories.set(current, h); } return h; }
@@ -131,7 +148,7 @@ function updateUndoRedo(): void {
 	const redo = element<HTMLButtonElement>('redo');
 	let canUndo = false, canRedo = false;
 	if (editing && state?.id) {
-		if (state.engine === 'neovim') {
+		if (activeEngine === 'neovim') {
 			canUndo = nativeCanUndo;
 			canRedo = nativeCanRedo;
 		} else {
@@ -158,16 +175,18 @@ let flushPending: Promise<void> = Promise.resolve();
 async function action(work: () => Promise<void>): Promise<void> {
 	if (busy) return;
 	const focus = document.activeElement;
-	busy = true; editor.disabled = true; nativeInput.disabled = true;
+	busy = true; editor.disabled = true; nativeInput.disabled = true; wysiwyg.setEditable(false);
 	document.querySelectorAll('button').forEach(button => { if (!button.closest('#window-controls')) button.disabled = true; });
 	try { await activePoll; await markPending; await nativePending; await flushPending; await flushSlideTypography(true); await slideTypographyPending; await work(); }
 	catch (error) { status(String(error), true); }
 	finally {
 		busy = false; editor.disabled = !editing; nativeInput.disabled = !editing;
 		document.querySelectorAll('button').forEach(button => button.disabled = false);
+		wysiwyg.setEditable(editing && activeEngine === 'wysiwyg');
 		updateUndoRedo();
-		if (focus === editor && state?.engine === 'builtin') editor.focus({preventScroll:true});
-		if (focus === nativeInput && state?.engine === 'neovim') native.focus();
+		if (focus === editor && activeEngine === 'builtin') editor.focus({preventScroll:true});
+		if (focus === nativeInput && activeEngine === 'neovim') native.focus();
+		if (wysiwyg.contains(focus) && activeEngine === 'wysiwyg') wysiwyg.focus();
 	}
 }
 function flush(): Promise<void> {
@@ -206,8 +225,8 @@ function refreshTitle(): void {
 	element('current').title=current;
 	element('filename').title = state?.filename || '';
 	element('count').textContent = `${editor.value.length.toLocaleString()} 文字`;
-	const engine = state?.engine === 'neovim' ? 'neovim' : 'builtin';
-	element('engine').textContent = engine === 'neovim' ? 'Neovim' : '内蔵エディター';
+	const engine = activeEngine;
+	element('engine').textContent = engine === 'neovim' ? 'Neovim' : engine === 'wysiwyg' ? 'WYSIWYG' : '内蔵エディター';
 	setEditorEngine(engine);
 	updateUndoRedo();
 }
@@ -381,13 +400,17 @@ async function selectPage(name: string): Promise<void> {
 	++renderID;
 	if (current && current !== name) scrollPositions.set(current, scrollSyncRatio);
 	scrollSyncRatio = scrollPositions.get(name) ?? 0;
-	if (editing && state.engine === 'neovim') {
+	if (editing && activeEngine === 'neovim') {
 		nativeCanUndo = false; nativeCanRedo = false; updateUndoRedo();
 		await api.NativeOpen(name);
 		await api.NativeScroll(scrollSyncRatio);
 	}
 	const text = await api.Text(name);
 	current = name; editor.value = text; changed = false; beforeInput = undefined;
+	if (editing && activeEngine === 'wysiwyg' && !(await loadWysiwyg())) {
+		activeEngine = 'builtin'; applyEditor();
+		status('このMarkdownはWYSIWYGで安全に往復できない構文を含むため、内蔵エディターで開きました', true);
+	}
 	markdownHeadingPage = '';
 	markdownHeadings = [];
 	activeMarkdownHeading = '';
@@ -395,19 +418,44 @@ async function selectPage(name: string): Promise<void> {
 	if(bookInfo?.url && !bookFallback && state.pages.includes(current)) showBook(bookInfo.url);
 	requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
 }
+function supportsWysiwyg(): boolean { return !!state?.capabilities.wysiwygEditor; }
+function initialEditorEngine(): EditorEngine {
+	if (!cfg) return 'builtin';
+	if (cfg.editor === 'wysiwyg' && !supportsWysiwyg()) return 'builtin';
+	return cfg.editor;
+}
+async function loadWysiwyg(): Promise<boolean> {
+	if (!supportsWysiwyg()) return false;
+	const html = await api.Render(editor.value);
+	if (renderedHTMLHasOmittedRawHTML(html)) return false;
+	const normalized = markdownFromRenderedHTML(html);
+	const rerendered = await api.Render(normalized);
+	if (!equivalentRenderedHTML(html, rerendered)) return false;
+	wysiwyg.load(editor.value, html);
+	return true;
+}
 function applyEditor(): void {
-	if (activeEngine && activeEngine !== state.engine) {
-		histories.clear();
-		nativeCanUndo = false;
-		nativeCanRedo = false;
+	let next = activeEngine;
+	if (state.engine === 'neovim') next = 'neovim';
+	else if (next === 'neovim') next = 'builtin';
+	if (next === 'wysiwyg' && !supportsWysiwyg()) next = 'builtin';
+	if (lastAppliedEngine && (lastAppliedEngine === 'neovim') !== (next === 'neovim')) {
+		histories.clear(); nativeCanUndo = false; nativeCanRedo = false;
 	}
-	activeEngine = state.engine;
-	const isNative = state.engine === 'neovim';
-	editor.hidden = isNative; native.setActive(isNative && editing); native.configure(cfg.fontFamily, cfg.fontSize);
+	activeEngine = next; lastAppliedEngine = next;
+	const isNative = activeEngine === 'neovim';
+	const isWysiwyg = activeEngine === 'wysiwyg';
+	editor.hidden = isNative || isWysiwyg;
+	wysiwyg.setActive(isWysiwyg);
+	wysiwyg.setEditable(isWysiwyg && editing && !busy);
+	native.setActive(isNative && editing); native.configure(cfg.fontFamily, cfg.fontSize);
 	editor.style.fontFamily = cfg.fontFamily; editor.style.fontSize = `${cfg.fontSize}px`;
+	element('editor-caption').textContent = isNative ? 'NEOVIM' : isWysiwyg ? 'WYSIWYG' : 'MARKDOWN';
 	element('native-warning').hidden = !state.nativeError;
 	element('native-warning').textContent = state.nativeError;
-	setEditorEngine(isNative ? 'neovim' : 'builtin');
+	const wysiwygButton = editorEngine.querySelector<HTMLButtonElement>('[data-engine="wysiwyg"]');
+	if (wysiwygButton) wysiwygButton.hidden = !supportsWysiwyg();
+	setEditorEngine(activeEngine);
 	updateUndoRedo();
 }
 async function reload(startEditing = false): Promise<void> {
@@ -418,13 +466,13 @@ async function reload(startEditing = false): Promise<void> {
 	closePresentation(); slideFrame.hidden=true; slidesInfo=undefined;
 	if (currentSession !== state.id) {
 		histories.clear(); collapsed.clear(); native.reset(); scrollPositions.clear();
-		scrollSyncRatio = 0; current = ''; currentSession = state.id;
+		scrollSyncRatio = 0; current = ''; currentSession = state.id; activeEngine = 'builtin'; lastAppliedEngine = '';
 	}
 	element('welcome').hidden = !!state.id; element('workspace').hidden = !state.id; element('editing').hidden = !state.id;
 	for (const id of ['save','save-as','sidebar-toggle']) element(id).hidden = !state.id;
 	updateEditing();
 	if (!state.id) { current = ''; refreshTitle(); return; }
-	if (startEditing) { editing = true; if (cfg.editor === 'neovim') await api.StartNative(); state = await api.State(); updateEditing(); }
+	if (startEditing) { editing = true; activeEngine = initialEditorEngine(); if (activeEngine === 'neovim') await api.StartNative(); state = await api.State(); updateEditing(); }
 	bookInfo = await api.BookStatus();
 	let first = state.entry;
 	if(bookInfo.detected) { contents=await api.Contents(); first=contents.entries.find(e=>e.name && !e.missing)?.name || state.entry; }
@@ -453,56 +501,55 @@ function updateEditing(): void {
 	document.body.classList.toggle('editing',editing); element('editing').setAttribute('aria-checked', String(editing));
 	element('editing').title = editing ? '表示モードに切り替える' : '編集モードに切り替える';
 	updatePaneLayout(); editor.readOnly = !editing; nativeInput.disabled = !editing;
+	wysiwyg.setEditable(editing && activeEngine === 'wysiwyg' && !busy);
 	editorEngine.hidden = !editing; element('engine').hidden = true;
+	const wysiwygButton = editorEngine.querySelector<HTMLButtonElement>('[data-engine="wysiwyg"]');
+	if (wysiwygButton) wysiwygButton.hidden = !supportsWysiwyg();
 	element('slide-typography').hidden = !editing || !documentIs('slides');
 	updateSlideDebugToggle();
 	element('slide-overflow-actions').hidden = !editing;
 	for (const id of ['undo','redo','edit-mode','split-mode','view-mode','add-page','image']) {
 		element(id).hidden = !editing || (documentIs('markdown') && (id === 'add-page' || id === 'image'));
 	}
-	native.setActive(editing && state?.engine === 'neovim');
+	native.setActive(editing && activeEngine === 'neovim');
 	updateUndoRedo();
 }
 element('editing').onclick = () => void action(async () => {
 	await flush();
 	if (editing) { await api.EndEditing(); editing = false; tocEditing=false; }
-	else { editing = true; if (cfg.editor === 'neovim') await api.StartNative(); }
+	else { editing = true; activeEngine = initialEditorEngine(); if (activeEngine === 'neovim') await api.StartNative(); }
 	state = await api.State();
 	updateEditing(); await refreshSidebar(); applyEditor(); await selectPage(current); native.resize();
 });
 for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-engine]')) button.onclick = () => {
-	const requested = button.dataset.engine!;
+	const requested = button.dataset.engine as EditorEngine;
 	void action(async () => {
-		if (!editing || requested === state.engine) return;
+		if (!editing || requested === activeEngine || (requested === 'wysiwyg' && !supportsWysiwyg())) return;
 		if (requested === 'neovim') {
-			await flush();
-			await api.StartNative();
-			state = await api.State();
-			applyEditor();
+			await flush(); await api.StartNative(); state = await api.State(); applyEditor();
 			if (state.engine !== 'neovim') {
-				setEditorEngine('builtin');
+				activeEngine = 'builtin'; applyEditor();
 				status(state.nativeError || 'Neovimを起動できません', true);
 				return;
 			}
 			nativeCanUndo = false; nativeCanRedo = false;
-			await api.NativeOpen(current);
-			await api.NativeScroll(scrollSyncRatio);
-			native.resize();
+			await api.NativeOpen(current); await api.NativeScroll(scrollSyncRatio); native.resize();
 			window.setTimeout(() => syncScroll('state', scrollSyncRatio, true), 50);
-			native.focus();
-			updateUndoRedo();
-			status('Neovimに切り替えました');
+			native.focus(); updateUndoRedo(); status('Neovimに切り替えました');
 			return;
 		}
-		await api.EndEditing();
-		state = await api.State();
-		editor.value = await api.Text(current);
-		changed = false;
-		applyEditor();
-		await render();
-		requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
-		editor.focus({preventScroll:true});
-		status('内蔵エディターに切り替えました');
+		await flush();
+		if (state.engine === 'neovim') { await api.EndEditing(); state = await api.State(); }
+		editor.value = await api.Text(current); changed = false; beforeInput = undefined;
+		activeEngine = requested;
+		if (requested === 'wysiwyg' && !(await loadWysiwyg())) {
+			activeEngine = 'builtin'; applyEditor(); await render(); editor.focus({preventScroll:true});
+			status('このMarkdownはWYSIWYGで安全に往復できない構文を含むため切り替えませんでした', true);
+			return;
+		}
+		applyEditor(); await render(); requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
+		if (requested === 'wysiwyg') { wysiwyg.focus(); status('WYSIWYGエディターに切り替えました'); }
+		else { editor.focus({preventScroll:true}); status('内蔵エディターに切り替えました'); }
 	});
 };
 function applyTheme(): void {
