@@ -118,6 +118,8 @@ func TestRoundTripPreservesAssetsAndMetadata(t *testing.T) {
 
 func TestLimitsAndFailedSave(t *testing.T) {
 	d := New()
+	d.Files["index.md"] = []byte("# Test\n")
+	d.Entry = "index.md"
 	if err := d.Put("large.md", bytes.Repeat([]byte{'a'}, MaxFile+1)); err == nil {
 		t.Fatal("large content accepted")
 	}
