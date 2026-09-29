@@ -165,6 +165,13 @@ func TestDuplicateConvertedSlideBecomesNewNormalPage(t *testing.T) {
 	}
 }
 
+func TestNormalSlideSourceParserAcceptsLegacyHeader(t *testing.T) {
+	text := "<!-- mdz-gui:normal-source {\"version\":1,\"file\":\"docs/page.md\",\"page\":1,\"part\":1,\"parts\":1,\"mode\":\"document\"} -->\n\n# Body\n"
+	meta, body, ok := normalSlideSourceFromText(text)
+	if !ok { t.Fatal("legacy metadata was rejected"); }
+	if meta.File != "docs/page.md" || body != "# Body\n" { t.Fatalf("legacy metadata = %+v, body = %q", meta, body); }
+}
+
 func TestNormalSlideSourceParserRejectsInvalidHeader(t *testing.T) {
 	text := "<!-- HatoNote:normal-source {\"version\":1,\"file\":\"../bad.md\",\"page\":1,\"part\":1,\"parts\":1,\"mode\":\"document\"} -->\n\n# Body\n"
 	if _, body, ok := normalSlideSourceFromText(text); ok || body != text {
