@@ -102,3 +102,37 @@ func TestDocumentPageOrderAndNames(t *testing.T) {
 		t.Fatal("復旧時にページ順が失われました")
 	}
 }
+
+func TestDuplicatePage(t *testing.T) {
+	d, err := newDocument("mdz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &App{base: t.TempDir(), cfg: settings.Default()}
+	a.session, err = workspace.New(a.base, d, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(a.shutdown)
+	if err := a.Update("本文.md", "# 複製元\n"); err != nil {
+		t.Fatal(err)
+	}
+	first, err := a.DuplicatePage("本文.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := a.DuplicatePage("本文.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != "本文-copy.md" || second != "本文-copy-2.md" {
+		t.Fatalf("names = %q, %q", first, second)
+	}
+	want := []string{"本文.md", "本文-copy-2.md", "本文-copy.md"}
+	if !slices.Equal(a.State().Pages, want) {
+		t.Fatalf("pages = %v, want %v", a.State().Pages, want)
+	}
+	if string(a.session.Doc.Files[first]) != "# 複製元\n" || string(a.session.Doc.Files[second]) != "# 複製元\n" {
+		t.Fatal("duplicated content changed")
+	}
+}
