@@ -120,7 +120,7 @@ func TestRealMdbook(t *testing.T) {
 
 // 通常の新規文書はmdBookと独立した本文ページを持ちます。
 func TestNewDocumentTemplate(t *testing.T) {
-	for _, kind := range []string{"document"} {
+	for _, kind := range []string{"mdz"} {
 		d, err := newDocument(kind)
 		if err != nil {
 			t.Fatal(err)
