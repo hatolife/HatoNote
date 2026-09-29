@@ -42,6 +42,13 @@ try {
 	await page.waitForFunction(()=>!document.querySelector('#wysiwyg').hidden);
 	assert.equal(await page.locator('#wysiwyg').evaluate(node=>node.classList.contains('slide-editor')),true);
 	assert.equal(await page.locator('#wysiwyg-content h1').first().textContent(),'新規スライド');
+	assert.equal(await page.locator('#wysiwyg-toolbar').isVisible(),true);
+	assert.equal(await page.locator('#wysiwyg-toolbar .wysiwyg-format-label').textContent(),'書式');
+	await page.locator('#wysiwyg-content h1').first().evaluate(node=>{const range=document.createRange();range.selectNodeContents(node);const selection=getSelection();selection?.removeAllRanges();selection?.addRange(range);});
+	await page.locator('#wysiwyg-toolbar [data-wysiwyg-command=bold]').click();
+	await page.waitForFunction(()=>(document.querySelector('#editor') as HTMLTextAreaElement).value.includes('# **新規スライド**'));
+	await page.locator('#undo').click();await ready();
+	await page.waitForFunction(()=>!(document.querySelector('#editor') as HTMLTextAreaElement).value.includes('**新規スライド**'));
 	await page.locator('#editor-engine [data-engine=builtin]').click();await ready();
 	await page.waitForFunction(()=>!document.querySelector('#editor').hidden);
 	const originalSlideIDs=(await rpc('Slides')).deck.slides.map(s=>s.id);
