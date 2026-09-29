@@ -62,7 +62,7 @@ var slideColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 // Deck は参照先と設定を検証してから返します。
 func (d *Document) Deck() (SlideDeck, error) {
 	var deck SlideDeck
-	if d.Mode != "slides" {
+	if !d.HasSlides() {
 		return deck, fmt.Errorf("スライド文書ではありません")
 	}
 	data := d.Files["slides.json"]
