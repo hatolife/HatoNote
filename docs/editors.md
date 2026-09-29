@@ -33,6 +33,8 @@
 - EDITOR-WYSIWYG-012: 書式バーから段落・見出し、太字、斜体、取り消し線、コード、箇条書き、番号付きリスト、リンク、水平線を変更できる。
 - EDITOR-WYSIWYG-013: スライド文書では1スライドにつき1つのMarkdownファイルだけをWYSIWYG編集対象とする。
 - EDITOR-WYSIWYG-014: スライドWYSIWYGは1つのMarkdownファイル内に複数スライドを保持する機能を提供しない。
+- EDITOR-WYSIWYG-015: スライドWYSIWYGでは `---` を現在スライド内の水平線として扱い、ページ区切りとして解釈しない。
+- EDITOR-WYSIWYG-016: スライドのページ分割操作は分割後の各ページを別のMarkdownファイルとして作成する。
 
 ## neovim
 
