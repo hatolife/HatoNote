@@ -3,7 +3,7 @@ import { NativeView } from './nvim.js';
 type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
 type PaneLayout = 'editor' | 'split' | 'preview';
 interface DocumentCapabilities { multiplePages: boolean; embeddedAssets: boolean; headingToc: boolean; mdbookPreview: boolean; presentation: boolean; externalEditor: boolean }
-interface Snapshot { filename: string; entry: string; pages: string[]; assets: string[]; documentType: DocumentType; capabilities: DocumentCapabilities; mode: string; singleMarkdown: boolean; dirty: boolean; id: string; workDir: string; engine: string; nativeError: string }
+interface Snapshot { filename: string; entry: string; pages: string[]; assets: string[]; documentType: DocumentType; capabilities: DocumentCapabilities; dirty: boolean; id: string; workDir: string; engine: string; nativeError: string }
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
 interface BookContents { revision: string; entries: TocEntry[]; unlisted: string[]; canUndo: boolean; canRedo: boolean }
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
