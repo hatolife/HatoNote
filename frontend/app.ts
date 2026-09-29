@@ -27,7 +27,7 @@ interface Backend {
 	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
-	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
+	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; OpenDataFolder(): Promise<void>;
@@ -44,8 +44,10 @@ const dialogBackdrop = element<HTMLElement>('dialog-backdrop');
 let activeAppDialog: HTMLDialogElement | undefined;
 function syncDialogBackdrop(): void {
 	const active = !!activeAppDialog?.open;
-	dialogBackdrop.hidden = !active;
+	const settingsScreen = active && activeAppDialog?.id === 'settings-dialog';
+	dialogBackdrop.hidden = !active || settingsScreen;
 	document.body.classList.toggle('app-dialog-open', active);
+	document.body.classList.toggle('settings-screen-open', settingsScreen);
 }
 function cancelAppDialog(dialog: HTMLDialogElement): void {
 	const cancel = new Event('cancel', {cancelable:true});
@@ -67,7 +69,8 @@ window.addEventListener('keydown', event => {
 	event.preventDefault();
 	cancelAppDialog(activeAppDialog);
 }, true);
-void api.Version().then(version => { element('app-version').textContent = version; }).catch(() => {});
+let appVersion = '';
+void api.Version().then(version => { appVersion = version; const target = document.getElementById('settings-version'); if (target) target.textContent = version; }).catch(() => {});
 const editor = element<HTMLTextAreaElement>('editor');
 const nativeInput = element<HTMLTextAreaElement>('native-input');
 const preview = element<HTMLIFrameElement>('preview');
@@ -211,7 +214,8 @@ function bookSummaryName(): string {
 }
 function refreshTitle(): void {
 	const unsaved = !!state?.id && (changed || !!state?.dirty);
-	element('filename').textContent = `${state?.id ? state.filename || '新しい文書' : ''}${unsaved ? ' ●' : ''}`;
+	const documentPath = state?.id ? state.filename || '新しい文書' : '';
+	element('titlebar-path').textContent = `${documentPath}${unsaved ? ' ●' : ''}`;
 	const save = element<HTMLButtonElement>('save');
 	save.classList.toggle('unsaved', unsaved);
 	const saveLabel = documentIs('markdown') ? 'Markdownを上書き保存' : '保存';
@@ -223,8 +227,8 @@ function refreshTitle(): void {
 	element('save-hint').textContent = documentIs('markdown') ? 'Ctrl+S Markdown保存 · Ctrl+Shift+S MDZとして保存 · Ctrl+O 開く' : 'Ctrl+S 保存 · Ctrl+O 開く';
 	element('current').textContent = documentIs('slides') ? slidesInfo?.deck.slides.find(s=>s.file===current)?.title || current : bookInfo?.present ? contents?.entries.find(e=>e.name===current)?.title || current.split('/').pop() || '' : current;
 	element('current').title=current;
-	element('filename').title = state?.filename || '';
-	element('count').textContent = `${editor.value.length.toLocaleString()} 文字`;
+	element('titlebar-path').title = state?.filename || '';
+	element('count').textContent = `${Array.from(editor.value).length.toLocaleString()} 文字`;
 	const engine = activeEngine;
 	element('engine').textContent = engine === 'neovim' ? 'Neovim' : engine === 'wysiwyg' ? 'WYSIWYG' : 'Markdown';
 	setEditorEngine(engine);
@@ -323,6 +327,7 @@ async function refreshSidebar(): Promise<void> {
 	element('book-title').textContent = bookInfo?.title || 'mdBook';
 	element('book-title-edit').hidden = !editing;
 	element('add-page').hidden = !editing || isBook || isSlides || isSingle;
+	element('duplicate-page').hidden = !editing || !documentIs('mdz');
 	element('image').hidden = !editing || isSingle;
 	element('recovery').hidden = isSingle;
 	element('toc-edit').hidden = !editing;
@@ -506,6 +511,7 @@ function updateEditing(): void {
 	const wysiwygButton = editorEngine.querySelector<HTMLButtonElement>('[data-engine="wysiwyg"]');
 	if (wysiwygButton) wysiwygButton.hidden = !supportsWysiwyg();
 	element('slide-typography').hidden = !editing || !documentIs('slides');
+	element('markdown-cheatsheet').hidden = !editing;
 	updateSlideDebugToggle();
 	element('slide-overflow-actions').hidden = !editing;
 	for (const id of ['undo','redo','edit-mode','split-mode','view-mode','add-page','image']) {
@@ -914,6 +920,14 @@ async function insertImage(name: string): Promise<void> {
 	else insertText(text);
 	await refreshSidebar(); await render();
 }
+element('duplicate-page').onclick = () => void action(async () => {
+	await flush();
+	if (!current) return;
+	const duplicated = await api.DuplicatePage(current);
+	await refreshSidebar();
+	await selectPage(duplicated);
+	status('ページを複製しました');
+});
 element('image').onclick = () => void action(async () => { await insertImage(await api.AddImage()); });
 async function clipboardImage(file: File): Promise<void> {
 	if (file.size > 32 * 1024 * 1024) throw new Error('画像は32MiB以下にしてください');
@@ -966,14 +980,18 @@ element('document-to-slides').onclick = () => void convertDocumentType('slides')
 element('slides-to-document').onclick = () => void convertDocumentType('mdz');
 window.addEventListener('keydown', event => {
 	if (!(event.ctrlKey || event.metaKey)) return;
+	if (event.key === '/' && editing && !activeAppDialog?.open) { event.preventDefault(); showAppDialog(element<HTMLDialogElement>('markdown-cheatsheet-dialog')); return; }
 	if (event.key.toLowerCase() === 's') { event.preventDefault(); void save(event.shiftKey); }
 	if (event.key.toLowerCase() === 'o' && event.target !== nativeInput) { event.preventDefault(); element('open').click(); }
 	const localEditor = activeEngine === 'builtin' ? event.target === editor : activeEngine === 'wysiwyg' ? wysiwyg.contains(event.target) : false;
 	if (state?.engine === 'builtin' && ['z','y'].includes(event.key.toLowerCase()) && localEditor) { event.preventDefault(); undo(event.shiftKey || event.key.toLowerCase() === 'y'); }
 });
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
+const cheatsheetDialog = element<HTMLDialogElement>('markdown-cheatsheet-dialog');
+element('markdown-cheatsheet').onclick = () => { if (editing) showAppDialog(cheatsheetDialog); };
 element('settings').onclick = () => {
 	element('settings-error').textContent = '';
+	element('settings-version').textContent = appVersion || '取得中';
 	detectedInitPath = '';
 	for (const [key, value] of Object.entries(cfg)) {
 		const control = settingsDialog.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${key}"]`)!;
