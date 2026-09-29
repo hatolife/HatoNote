@@ -72,12 +72,9 @@ func newDocument(kind string) (*bundle.Document, error) {
 	switch kind {
 	case "slides":
 		return bundle.NewSlides()
-	case "document", "project":
+	case "document":
 		d.Files = map[string][]byte{"本文.md": []byte("# 新しい文書\n\n編集モードでは、この文章を書き換えて文書を作成できます。\n\n右上の「表示 / 編集」で、読みやすい表示と編集を切り替えられます。\n\n画像やページを追加して、ひとつのMDZファイルに保存できます。\n")}
 		d.Entry = "本文.md"
-		if kind == "project" {
-			d.Mode = "project"
-		}
 		return d, nil
 	case "mdbook":
 		files := map[string][]byte{"manifest.json": []byte(`{"spec":{"name":"mdzip-spec","version":"1.1.0"},"mode":"project","entryPoint":"src/introduction.md"}`)}
@@ -106,7 +103,7 @@ func newDocument(kind string) (*bundle.Document, error) {
 
 // detectBook は設定されたソースディレクトリを文書内に限定します。
 func detectBook(d *bundle.Document) (string, error) {
-	if d.Mode == "slides" {
+	if d.HasSlides() {
 		return "", nil
 	}
 	data, ok := d.Files["book.toml"]
@@ -353,25 +350,6 @@ func (a *App) EndEditing() error {
 		a.native = nil
 	}
 	return nil
-}
-
-// SetDocumentMode は表示方式と独立した文書の意味付けを保存します。
-func (a *App) SetDocumentMode(mode string) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.session == nil {
-		return fmt.Errorf("文書を開いてください")
-	}
-	if mode != "document" && mode != "project" {
-		return fmt.Errorf("モードが不正です")
-	}
-	a.session.Doc.Mode = mode
-	a.session.Doc.Manifest["mode"], _ = json.Marshal(mode)
-	b, err := json.MarshalIndent(a.session.Doc.Manifest, "", "\t")
-	if err != nil {
-		return err
-	}
-	return a.session.Put("manifest.json", b)
 }
 
 // BookLog は実行結果の確認に使い、MDZには保存しません。
