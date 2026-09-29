@@ -226,7 +226,7 @@ function refreshTitle(): void {
 	element('filename').title = state?.filename || '';
 	element('count').textContent = `${editor.value.length.toLocaleString()} 文字`;
 	const engine = activeEngine;
-	element('engine').textContent = engine === 'neovim' ? 'Neovim' : engine === 'wysiwyg' ? 'WYSIWYG' : '内蔵エディター';
+	element('engine').textContent = engine === 'neovim' ? 'Neovim' : engine === 'wysiwyg' ? 'WYSIWYG' : 'Markdown';
 	setEditorEngine(engine);
 	updateUndoRedo();
 }
@@ -409,7 +409,7 @@ async function selectPage(name: string): Promise<void> {
 	current = name; editor.value = text; changed = false; beforeInput = undefined;
 	if (editing && activeEngine === 'wysiwyg' && !(await loadWysiwyg())) {
 		activeEngine = 'builtin'; applyEditor();
-		status('このMarkdownはWYSIWYGで安全に往復できない構文を含むため、内蔵エディターで開きました', true);
+		status('このMarkdownはWYSIWYGで安全に往復できない構文を含むため、Markdownエディターで開きました', true);
 	}
 	markdownHeadingPage = '';
 	markdownHeadings = [];
@@ -549,7 +549,7 @@ for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-eng
 		}
 		applyEditor(); await render(); requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
 		if (requested === 'wysiwyg') { wysiwyg.focus(); status('WYSIWYGエディターに切り替えました'); }
-		else { editor.focus({preventScroll:true}); status('内蔵エディターに切り替えました'); }
+		else { editor.focus({preventScroll:true}); status('Markdownエディターに切り替えました'); }
 	});
 };
 function applyTheme(): void {
@@ -868,7 +868,7 @@ function undo(redo: boolean): void {
 	editor.value = entry.text;
 	if (activeEngine === 'wysiwyg') {
 		void loadWysiwyg().then(ok => {
-			if (!ok) { activeEngine = 'builtin'; applyEditor(); status('Undo後の内容をWYSIWYGで安全に表示できないため、内蔵エディターへ切り替えました', true); }
+			if (!ok) { activeEngine = 'builtin'; applyEditor(); status('Undo後の内容をWYSIWYGで安全に表示できないため、Markdownエディターへ切り替えました', true); }
 			else wysiwyg.focus();
 		}).catch(error => status(String(error), true));
 	} else {
