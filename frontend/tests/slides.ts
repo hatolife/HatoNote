@@ -37,7 +37,13 @@ try {
 	assert(await page.evaluate(()=>Math.abs(window.sidebarBefore-document.querySelector('#sidebar').scrollTop)<2));
 	await page.locator('.slide-card').first().click();await ready();
 	assert.equal(await page.locator('#editing').getAttribute('aria-checked'),'true');
-	assert.equal(await page.locator('#editor-engine [data-engine=wysiwyg]').isVisible(),false);
+	assert.equal(await page.locator('#editor-engine [data-engine=wysiwyg]').isVisible(),true);
+	await page.locator('#editor-engine [data-engine=wysiwyg]').click();await ready();
+	await page.waitForFunction(()=>!document.querySelector('#wysiwyg').hidden);
+	assert.equal(await page.locator('#wysiwyg').evaluate(node=>node.classList.contains('slide-editor')),true);
+	assert.equal(await page.locator('#wysiwyg-content h1').first().textContent(),'新規スライド');
+	await page.locator('#editor-engine [data-engine=builtin]').click();await ready();
+	await page.waitForFunction(()=>!document.querySelector('#editor').hidden);
 	const originalSlideIDs=(await rpc('Slides')).deck.slides.map(s=>s.id);
 	await page.locator('.slide-card').nth(1).hover();await page.mouse.down();
 	const insertionTarget=await page.locator('.slide-card').first().boundingBox();
@@ -71,6 +77,10 @@ try {
 	for(let attempt=0;attempt<40;attempt++){typography=(await rpc('Slides')).deck;if(typography.fontFamily==='mincho'&&typography.contentMarginX===44&&typography.contentMarginY===36&&typography.bodyFontSize===28&&typography.h1FontSize===50)break;await page.waitForTimeout(50);}
 	assert.equal(typography.fontFamily,'mincho');assert.equal(typography.contentMarginX,44);assert.equal(typography.contentMarginY,36);assert.equal(typography.bodyFontSize,28);assert.equal(typography.h1FontSize,50);
 	assert.equal(await slide.locator('section').evaluate(node=>getComputedStyle(node).paddingLeft),'44px');assert.equal(await slide.locator('section').evaluate(node=>getComputedStyle(node).paddingTop),'36px');assert.equal(await slide.locator('section').evaluate(node=>getComputedStyle(node).fontSize),'28px');assert.equal(await slide.locator('h1').evaluate(node=>getComputedStyle(node).fontSize),'50px');
+	await page.locator('#editor-engine [data-engine=wysiwyg]').click();await ready();
+	const wysiwygFrame=await page.locator('#wysiwyg-content').evaluate(node=>{const r=node.getBoundingClientRect();return{ratio:r.width/r.height,font:getComputedStyle(node).fontFamily,layout:node.getAttribute('data-layout')};});
+	assert(Math.abs(wysiwygFrame.ratio-16/9)<0.02);assert.match(wysiwygFrame.font,/Yu Mincho/);assert.equal(wysiwygFrame.layout,'standard');
+	await page.locator('#editor-engine [data-engine=builtin]').click();await ready();
 	await menu(opLabels.duplicate);await ready();
 	assert.equal(await page.locator('.slide-card').count(),9);assert.equal((await rpc('Slides')).deck.slides[1].notes,'画面には見せないメモ');
 	const copy=(await rpc('Slides')).deck.slides[1];
@@ -83,6 +93,12 @@ try {
 	await page.locator('#editor').fill('# 比較\n\n- 左の内容\n\n<!-- column -->\n\n# 結果\n\n- 右の内容');
 	await page.locator('#slides-settings').click();await page.locator('#slide-title').fill('比較');await page.locator('#slide-layout').selectOption('columns');await page.locator('#slides-settings-save').click();await ready();
 	await slide.locator('.slide-columns').waitFor();
+	await page.locator('#editor-engine [data-engine=wysiwyg]').click();await ready();
+	await page.locator('#wysiwyg-content .slide-columns').waitFor();
+	await page.locator('#wysiwyg-content .slide-columns>div').last().evaluate(node=>{const p=document.createElement('p');p.textContent='WYSIWYG追記';node.append(p);document.querySelector('#wysiwyg-content')?.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText'}));});
+	await page.waitForFunction(()=>{const value=(document.querySelector('#editor') as HTMLTextAreaElement).value;return value.includes('<!-- column -->')&&value.includes('WYSIWYG追記');});
+	await page.locator('#editor-engine [data-engine=builtin]').click();await ready();
+	assert((await page.locator('#editor').inputValue()).includes('<!-- column -->'));
 	await page.screenshot({path:path.join(output,'slides-editor.png')});
 	const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=';
 	await page.locator('#editor').focus();await page.keyboard.press('Control+End');await page.keyboard.press('Enter');
