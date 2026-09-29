@@ -123,7 +123,7 @@ func TestSlidesRoundTripAndStructure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Close()
-	if r.Doc.Mode != "slides" || r.Doc.Pages()[0] != copySlide.File {
+	if r.Doc.ManifestMode != bundle.ManifestModeSlides || r.Doc.Pages()[0] != copySlide.File {
 		t.Fatal("recovery lost deck")
 	}
 }
