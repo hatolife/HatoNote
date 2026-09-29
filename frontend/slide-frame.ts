@@ -1,7 +1,7 @@
 /// <reference path="./reveal.d.ts" />
 import Reveal from './vendor/reveal.esm.js';
-interface FrameSlide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; html: string }
-interface FrameData { type: string; token: number; slides: FrameSlide[]; theme: string; aspect: string; index: number; presentation: boolean; editorPreview?: boolean; previewNavigation?: boolean; debugOutline?: boolean; marginColor?: string; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number }
+interface FrameSlide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; html: string; hidePageNumber?: boolean }
+interface FrameData { type: string; token: number; slides: FrameSlide[]; theme: string; aspect: string; index: number; presentation: boolean; editorPreview?: boolean; previewNavigation?: boolean; debugOutline?: boolean; marginColor?: string; pageNumberEnabled?: boolean; pageNumberPosition?: string; pageNumberStart?: number; pageNumberOffset?: number; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number }
 let deck: Reveal | undefined;
 let activeToken = 0;
 let currentData: FrameData | undefined;
@@ -63,14 +63,24 @@ async function display(data: FrameData): Promise<void> {
 	const root = document.createElement('div'); root.className = 'reveal';root.style.backgroundColor=document.body.style.backgroundColor;
 	const slides = document.createElement('div'); slides.className = 'slides'; root.append(slides);
 	document.body.replaceChildren(root);
-	for (const slide of data.slides) {
+	for (const [slideIndex, slide] of data.slides.entries()) {
 		const section = document.createElement('section');
 		section.dataset.id = slide.id; section.dataset.theme = data.theme; section.dataset.layout = slide.layout;
 		applyTypography(section, data, slide);
 		if (/^#[0-9a-f]{6}$/i.test(slide.background || '')) section.style.backgroundColor = slide.background;
 		const content = document.createElement('div'); content.className = 'slide-content';
 		// 本文はバックエンドのGoldmarkで生HTMLを禁止して変換済みです。
-		content.innerHTML = slide.html; section.append(content); slides.append(section);
+		content.innerHTML = slide.html; section.append(content);
+		if (data.pageNumberEnabled && !slide.hidePageNumber) {
+			const number = document.createElement('div');
+			number.className = 'slide-page-number';
+			number.dataset.position = data.pageNumberPosition || 'bottom-right';
+			const start = Number.isInteger(data.pageNumberStart) ? data.pageNumberStart! : 1;
+			const offset = Number.isInteger(data.pageNumberOffset) ? data.pageNumberOffset! : 0;
+			number.textContent = String(start + offset + slideIndex);
+			section.append(number);
+		}
+		slides.append(section);
 		for (const image of content.querySelectorAll('img')) image.addEventListener('load', checkOverflow);
 	}
 	deck = new Reveal(root, {width:960, height:data.aspect==='4:3'?720:540, margin:data.presentation?0:.04, minScale:.05, maxScale:10,
