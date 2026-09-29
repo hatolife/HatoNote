@@ -68,8 +68,8 @@ type Snapshot struct {
 	Assets         []string             `json:"assets"`
 	DocumentType   DocumentType         `json:"documentType"`
 	Capabilities   DocumentCapabilities `json:"capabilities"`
-	Mode           string               `json:"mode"`
-	SingleMarkdown bool                 `json:"singleMarkdown"`
+	Mode           string               `json:"mode"`           // 互換用。新しいUI判定にはDocumentTypeを使用する。
+	SingleMarkdown bool                 `json:"singleMarkdown"` // 互換用。新しいUI判定にはDocumentTypeを使用する。
 	Dirty          bool     `json:"dirty"`
 	ID             string   `json:"id"`
 	WorkDir        string   `json:"workDir"`
