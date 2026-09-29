@@ -13,19 +13,20 @@ var emphasisPattern = regexp.MustCompile(`(^|[[:space:]（(])([*][^*\n]+[*]|_[^_
 
 // TestSpecificationDocuments は仕様書が条件列挙の形式を維持していることを確認します。
 func TestSpecificationDocuments(t *testing.T) {
+	ids := map[string]string{}
 	err := filepath.WalkDir("docs", func(path string, entry os.DirEntry, err error) error {
 		if err != nil { return err; }
 		if entry.IsDir() || filepath.Ext(path) != ".md" { return nil; }
 		data, err := os.ReadFile(path)
 		if err != nil { return err; }
-		checkSpecificationDocument(t, path, string(data))
+		checkSpecificationDocument(t, path, string(data), ids)
 		return nil
 	})
 	if err != nil { t.Fatal(err); }
 }
 
 // checkSpecificationDocument は仕様書の本文を機械判定可能な形式に限定します。
-func checkSpecificationDocument(t *testing.T, path, text string) {
+func checkSpecificationDocument(t *testing.T, path, text string, ids map[string]string) {
 	t.Helper()
 	inCode := false
 	for index, line := range strings.Split(text, "\n") {
@@ -42,9 +43,18 @@ func checkSpecificationDocument(t *testing.T, path, text string) {
 			t.Errorf("%s:%d: 仕様は箇条書きの条件として記述します", path, index+1)
 			continue
 		}
-		if !specificationIDPattern.MatchString(strings.TrimPrefix(trimmed, "- ")) {
+		item := strings.TrimPrefix(trimmed, "- ")
+		if !specificationIDPattern.MatchString(item) {
 			t.Errorf("%s:%d: 箇条書きには仕様IDを付けます", path, index+1)
+			continue
 		}
+		id := strings.SplitN(item, ":", 2)[0]
+		location := path + ":" + string(rune(index+1))
+		if previous, ok := ids[id]; ok {
+			t.Errorf("%s:%d: 仕様ID %s は %s と重複しています", path, index+1, id, previous)
+			continue
+		}
+		ids[id] = location
 	}
 }
 
