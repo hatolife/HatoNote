@@ -21,7 +21,7 @@ func writeDroppedMarkdown(t *testing.T, directory, name, text string) string {
 func TestImportMarkdownFilesIntoDocumentUsesNaturalOrder(t *testing.T) {
 	a := &App{base: t.TempDir(), cfg: settings.Default()}
 	defer a.shutdown()
-	if opened, err := a.NewDocument("document"); err != nil || !opened {
+	if opened, err := a.NewDocument("mdz"); err != nil || !opened {
 		t.Fatalf("new document: opened=%v err=%v", opened, err)
 	}
 
