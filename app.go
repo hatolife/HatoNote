@@ -241,7 +241,7 @@ func (a *App) adoptLocked(s *workspace.Session) {
 		}
 	}
 }
-func (a *App) New() (bool, error) { return a.NewDocument("document") }
+func (a *App) New() (bool, error) { return a.NewDocument("mdz") }
 func (a *App) NewDocument(kind string) (bool, error) {
 	if !a.discardAllowed() {
 		return false, nil
