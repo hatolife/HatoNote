@@ -393,21 +393,29 @@ func (s *Session) SaveMarkdown(base, filename string, cfg settings.Settings) err
 	return s.Checkpoint()
 }
 
-func backup(base, filename string, cfg settings.Settings) error {
+func documentHistoryInfo(filename string) (string, string, string, error) {
 	abs, err := filepath.Abs(filename)
 	if err != nil {
-		return err
+		return "", "", "", err
 	}
 	key := sha256.Sum256([]byte(strings.ToLower(filepath.Clean(abs))))
-	dir := filepath.Join(base, "backups", hex.EncodeToString(key[:16]))
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	extension := strings.ToLower(filepath.Ext(filename))
+	extension := strings.ToLower(filepath.Ext(abs))
 	switch extension {
 	case ".mdz", ".md", ".markdown":
 	default:
 		extension = ".bak"
+	}
+	return abs, hex.EncodeToString(key[:16]), extension, nil
+}
+
+func backup(base, filename string, cfg settings.Settings) error {
+	abs, key, extension, err := documentHistoryInfo(filename)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(base, "backups", key)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
 	}
 	name := filepath.Join(dir, time.Now().UTC().Format("20060102-150405.000000000")+extension)
 	f, err := os.Open(filename)
@@ -462,6 +470,196 @@ func backup(base, filename string, cfg settings.Settings) error {
 		}
 	}
 	return nil
+}
+
+
+type HistoryEntry struct {
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	Kind    string    `json:"kind"`
+	Created time.Time `json:"created"`
+	Size    int64     `json:"size"`
+}
+
+type namedVersionMeta struct {
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	Created time.Time `json:"created"`
+	File    string    `json:"file"`
+}
+
+// History は現在の保存先に対応する自動バックアップと名前付き世代を返します。
+func History(base, filename string) ([]HistoryEntry, error) {
+	if strings.TrimSpace(filename) == "" {
+		return []HistoryEntry{}, nil
+	}
+	_, key, extension, err := documentHistoryInfo(filename)
+	if err != nil {
+		return nil, err
+	}
+	result := []HistoryEntry{}
+	backupDir := filepath.Join(base, "backups", key)
+	if entries, readErr := os.ReadDir(backupDir); readErr == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), extension) {
+				continue
+			}
+			info, statErr := entry.Info()
+			if statErr != nil {
+				return nil, statErr
+			}
+			result = append(result, HistoryEntry{ID:"backup/"+entry.Name(), Name:"自動バックアップ", Kind:"backup", Created:info.ModTime().UTC(), Size:info.Size()})
+		}
+	} else if !os.IsNotExist(readErr) {
+		return nil, readErr
+	}
+	versionDir := filepath.Join(base, "versions", key)
+	if entries, readErr := os.ReadDir(versionDir); readErr == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
+				continue
+			}
+			data, readMetaErr := os.ReadFile(filepath.Join(versionDir, entry.Name()))
+			if readMetaErr != nil {
+				return nil, readMetaErr
+			}
+			var meta namedVersionMeta
+			if json.Unmarshal(data, &meta) != nil || meta.ID == "" || meta.File == "" || filepath.Base(meta.File) != meta.File {
+				continue
+			}
+			info, statErr := os.Stat(filepath.Join(versionDir, meta.File))
+			if statErr != nil {
+				if os.IsNotExist(statErr) {
+					continue
+				}
+				return nil, statErr
+			}
+			result = append(result, HistoryEntry{ID:"named/"+meta.ID, Name:meta.Name, Kind:"named", Created:meta.Created, Size:info.Size()})
+		}
+	} else if !os.IsNotExist(readErr) {
+		return nil, readErr
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Created.After(result[j].Created) })
+	return result, nil
+}
+
+func cloneDocument(doc *bundle.Document) *bundle.Document {
+	files := make(map[string][]byte, len(doc.Files))
+	for name, data := range doc.Files {
+		files[name] = append([]byte(nil), data...)
+	}
+	manifest := make(map[string]json.RawMessage, len(doc.Manifest))
+	for key, value := range doc.Manifest {
+		manifest[key] = append(json.RawMessage(nil), value...)
+	}
+	return &bundle.Document{Files:files, Manifest:manifest, Entry:doc.Entry}
+}
+
+// SaveNamedVersion は現在の作業状態を通常保存とは別の名前付き世代として保存します。
+func (s *Session) SaveNamedVersion(base, version, name string) (HistoryEntry, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return HistoryEntry{}, fmt.Errorf("世代名を入力してください")
+	}
+	if s.Filename == "" {
+		return HistoryEntry{}, fmt.Errorf("先に文書を保存してください")
+	}
+	if err := s.Capture(); err != nil {
+		return HistoryEntry{}, err
+	}
+	_, key, extension, err := documentHistoryInfo(s.Filename)
+	if err != nil {
+		return HistoryEntry{}, err
+	}
+	dir := filepath.Join(base, "versions", key)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return HistoryEntry{}, err
+	}
+	created := time.Now().UTC()
+	id := created.Format("20060102-150405.000000000")
+	file := id + extension
+	target := filepath.Join(dir, file)
+	if extension == ".md" || extension == ".markdown" {
+		body, ok := s.Doc.Files[s.Doc.Entry]
+		if !ok {
+			return HistoryEntry{}, fmt.Errorf("Markdown本文がありません")
+		}
+		if err := AtomicWrite(target, body); err != nil {
+			return HistoryEntry{}, err
+		}
+	} else {
+		if err := cloneDocument(s.Doc).Write(target, version); err != nil {
+			return HistoryEntry{}, err
+		}
+	}
+	meta := namedVersionMeta{ID:id, Name:name, Created:created, File:file}
+	data, err := json.MarshalIndent(meta, "", "\t")
+	if err != nil {
+		return HistoryEntry{}, err
+	}
+	if err := AtomicWrite(filepath.Join(dir, id+".json"), data); err != nil {
+		_ = os.Remove(target)
+		return HistoryEntry{}, err
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		return HistoryEntry{}, err
+	}
+	return HistoryEntry{ID:"named/"+id, Name:name, Kind:"named", Created:created, Size:info.Size()}, nil
+}
+
+func historyFile(base, filename, id string) (string, error) {
+	if strings.TrimSpace(filename) == "" {
+		return "", fmt.Errorf("保存済み文書を開いてください")
+	}
+	_, key, _, err := documentHistoryInfo(filename)
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(id, "backup/") {
+		name := strings.TrimPrefix(id, "backup/")
+		if name == "" || filepath.Base(name) != name {
+			return "", fmt.Errorf("履歴IDが不正です")
+		}
+		return filepath.Join(base, "backups", key, name), nil
+	}
+	if strings.HasPrefix(id, "named/") {
+		versionID := strings.TrimPrefix(id, "named/")
+		if versionID == "" || filepath.Base(versionID) != versionID {
+			return "", fmt.Errorf("履歴IDが不正です")
+		}
+		metaData, err := os.ReadFile(filepath.Join(base, "versions", key, versionID+".json"))
+		if err != nil {
+			return "", err
+		}
+		var meta namedVersionMeta
+		if json.Unmarshal(metaData, &meta) != nil || meta.ID != versionID || filepath.Base(meta.File) != meta.File {
+			return "", fmt.Errorf("名前付き世代の情報が不正です")
+		}
+		return filepath.Join(base, "versions", key, meta.File), nil
+	}
+	return "", fmt.Errorf("履歴IDが不正です")
+}
+
+// LoadHistory は履歴を作業用Documentとして読み込みます。
+func LoadHistory(base, filename, id string) (*bundle.Document, error) {
+	history, err := historyFile(base, filename, id)
+	if err != nil {
+		return nil, err
+	}
+	extension := strings.ToLower(filepath.Ext(filename))
+	if extension == ".md" || extension == ".markdown" {
+		body, err := os.ReadFile(history)
+		if err != nil {
+			return nil, err
+		}
+		name := filepath.Base(filename)
+		doc := bundle.New()
+		doc.Files[name] = body
+		doc.Entry = name
+		return doc, nil
+	}
+	return bundle.Read(history)
 }
 
 func Recoveries(base string) ([]Meta, error) {
