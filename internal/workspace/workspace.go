@@ -100,7 +100,7 @@ func New(base string, doc *bundle.Document, filename string, dirty bool) (*Sessi
 	}
 	// 新規文書にも復旧可能なmanifestを置きます。
 	if _, ok := doc.Files["manifest.json"]; !ok {
-		b, _ := json.Marshal(map[string]any{"entryPoint": doc.Entry, "mode": doc.ManifestMode})
+		b, _ := json.Marshal(map[string]any{"entryPoint": doc.Entry, "mode": doc.ManifestMode()})
 		doc.Files["manifest.json"] = b
 		if err := s.write("manifest.json", b); err != nil {
 			os.RemoveAll(root)
