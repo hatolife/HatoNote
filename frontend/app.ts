@@ -28,6 +28,7 @@ interface DocumentTemplate { id: string; kind: string; title: string }
 interface UserTemplate { id: string; scope: 'page' | 'document'; kind: 'mdz'; title: string; content: string }
 interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
+interface NavigationEntry { page: string; ratio: number }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
 interface Backend {
 	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>; CheckDiagramDependencies(mermaidPath:string,javaPath:string,plantUMLJar:string,katexPath:string):Promise<Dependency[]>;
@@ -118,6 +119,8 @@ let scrollSyncLocked = false;
 let scrollSyncRatio = 0;
 let nativeScrollTimer = 0;
 const scrollPositions = new Map<string, number>();
+let navigationBack: NavigationEntry[] = [];
+let navigationForward: NavigationEntry[] = [];
 let autoDeadline = 0;
 let currentSession = '';
 let editing = false;
@@ -491,9 +494,27 @@ function addFileButton(nav: HTMLElement, name: string, label: string, depth: num
 	}
 	nav.append(b);
 }
-async function selectPage(name: string): Promise<void> {
+function updateNavigationButtons(): void {
+	const available = !!state?.id && !!state.capabilities.multiplePages;
+	const back = element<HTMLButtonElement>('nav-back');
+	const forward = element<HTMLButtonElement>('nav-forward');
+	back.hidden = !available;
+	forward.hidden = !available;
+	back.disabled = navigationBack.length === 0;
+	forward.disabled = navigationForward.length === 0;
+}
+async function selectPage(name: string, options: {record?: boolean; ratio?: number} = {}): Promise<void> {
 	++renderID;
-	if (current && current !== name) scrollPositions.set(current, scrollSyncRatio);
+	const record = options.record !== false;
+	if (current && current !== name) {
+		scrollPositions.set(current, scrollSyncRatio);
+		if (record) {
+			navigationBack.push({page:current, ratio:scrollSyncRatio});
+			if (navigationBack.length > 100) navigationBack = navigationBack.slice(-100);
+			navigationForward = [];
+		}
+	}
+	if (options.ratio !== undefined) scrollPositions.set(name, options.ratio);
 	scrollSyncRatio = scrollPositions.get(name) ?? 0;
 	if (editing && activeEngine === 'neovim') {
 		nativeCanUndo = false; nativeCanRedo = false; updateUndoRedo();
@@ -511,6 +532,7 @@ async function selectPage(name: string): Promise<void> {
 	activeMarkdownHeading = '';
 	await refreshSidebar(); ensureCurrentTocVisible(); await render();
 	if(bookInfo?.url && !bookFallback && state.pages.includes(current)) showBook(bookInfo.url);
+	updateNavigationButtons();
 	requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
 }
 function supportsWysiwyg(): boolean { return !!state?.capabilities.wysiwygEditor; }
@@ -573,7 +595,7 @@ async function reload(startEditing = false): Promise<void> {
 	element<HTMLIFrameElement>('book-preview').src='about:blank'; element('book-preview').hidden=true; preview.hidden=false;
 	closePresentation(); slideFrame.hidden=true; slidesInfo=undefined;
 	if (currentSession !== state.id) {
-		histories.clear(); collapsed.clear(); native.reset(); scrollPositions.clear();
+		histories.clear(); collapsed.clear(); native.reset(); scrollPositions.clear(); navigationBack=[]; navigationForward=[];
 		scrollSyncRatio = 0; current = ''; currentSession = state.id; activeEngine = 'builtin'; lastAppliedEngine = '';
 	}
 	element('welcome').hidden = !!state.id; element('workspace').hidden = !state.id; element('editing').hidden = !state.id;
@@ -581,7 +603,7 @@ async function reload(startEditing = false): Promise<void> {
 	element('history').hidden = !state.id || !state.filename;
 	element('export').hidden = !state.id;
 	updateEditing();
-	if (!state.id) { current = ''; refreshTitle(); return; }
+	if (!state.id) { current = ''; updateNavigationButtons(); refreshTitle(); return; }
 	if (startEditing) { editing = true; activeEngine = initialEditorEngine(); if (activeEngine === 'neovim') await api.StartNative(); state = await api.State(); updateEditing(); }
 	bookInfo = await api.BookStatus();
 	let first = state.entry;
@@ -1249,6 +1271,7 @@ window.addEventListener('keydown', event => {
 	if (!(event.ctrlKey || event.metaKey)) return;
 	const key = event.key.toLowerCase();
 	if (key === 'p' && event.shiftKey && !activeAppDialog?.open) { event.preventDefault(); showCommandPalette(); return; }
+	if (key === 'p' && !event.shiftKey && state?.capabilities.multiplePages && !activeAppDialog?.open) { event.preventDefault(); runCommand('navigation.quickOpen'); return; }
 	if (event.key === '/' && editing && (!activeAppDialog?.open || activeAppDialog === cheatsheetDialog)) { event.preventDefault(); runCommand('help.markdownCheatsheet'); return; }
 	if (key === 'f' && state?.id && !activeAppDialog?.open) { event.preventDefault(); runCommand('document.search'); return; }
 	if (key === 's') { event.preventDefault(); runCommand(event.shiftKey ? 'document.saveAs' : 'document.save'); return; }
@@ -1256,6 +1279,68 @@ window.addEventListener('keydown', event => {
 	const localEditor = activeEngine === 'builtin' ? event.target === editor : activeEngine === 'wysiwyg' ? wysiwyg.contains(event.target) : false;
 	if (state?.engine === 'builtin' && ['z','y'].includes(key) && localEditor) { event.preventDefault(); undo(event.shiftKey || key === 'y'); }
 });
+window.addEventListener('keydown', event => {
+	if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || activeAppDialog?.open) return;
+	if (event.key === 'ArrowLeft') { event.preventDefault(); runCommand('navigation.back'); }
+	else if (event.key === 'ArrowRight') { event.preventDefault(); runCommand('navigation.forward'); }
+});
+
+const quickOpenDialog = element<HTMLDialogElement>('quick-open-dialog');
+const quickOpenInput = element<HTMLInputElement>('quick-open-input');
+const quickOpenResults = element<HTMLElement>('quick-open-results');
+function renderQuickOpen(): void {
+	const query = quickOpenInput.value.trim().toLocaleLowerCase();
+	quickOpenResults.replaceChildren();
+	for (const name of state.pages.filter(name => !query || name.toLocaleLowerCase().includes(query)).slice(0, 200)) {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'quick-open-result';
+		button.textContent = name;
+		button.title = name;
+		button.onclick = () => void action(async () => {
+			quickOpenDialog.close();
+			await flush();
+			await selectPage(name);
+			status(`${name} を開きました`);
+		});
+		quickOpenResults.append(button);
+	}
+}
+function showQuickOpen(): void {
+	if (!state?.id || !state.capabilities.multiplePages) return;
+	quickOpenInput.value = '';
+	renderQuickOpen();
+	showAppDialog(quickOpenDialog);
+	requestAnimationFrame(() => quickOpenInput.focus());
+}
+quickOpenInput.addEventListener('input', renderQuickOpen);
+quickOpenInput.addEventListener('keydown', event => {
+	if (event.key !== 'Enter') return;
+	const first = quickOpenResults.querySelector<HTMLButtonElement>('button');
+	if (!first) return;
+	event.preventDefault();
+	first.click();
+});
+async function navigateHistory(direction: 'back' | 'forward'): Promise<void> {
+	if (!state?.id || !current) return;
+	const source = direction === 'back' ? navigationBack : navigationForward;
+	const destination = direction === 'back' ? navigationForward : navigationBack;
+	let target: NavigationEntry | undefined;
+	while (source.length) {
+		const candidate = source.pop()!;
+		if (state.pages.includes(candidate.page)) { target = candidate; break; }
+	}
+	if (!target) { updateNavigationButtons(); return; }
+	destination.push({page:current, ratio:scrollSyncRatio});
+	if (destination.length > 100) destination.splice(0, destination.length - 100);
+	await action(async () => {
+		await flush();
+		await selectPage(target!.page, {record:false, ratio:target!.ratio});
+	});
+	updateNavigationButtons();
+}
+element('nav-back').onclick = () => runCommand('navigation.back');
+element('nav-forward').onclick = () => runCommand('navigation.forward');
 
 const searchDialog = element<HTMLDialogElement>('search-dialog');
 const searchInput = element<HTMLInputElement>('search-input');
@@ -1849,6 +1934,9 @@ commands.register({id:'view.toggleEditing', title:'表示 / 編集を切り替�
 commands.register({id:'view.layout.editor', title:'編集だけ表示', enabled:()=>editing, execute:()=>setPaneLayout('editor')});
 commands.register({id:'view.layout.split', title:'編集とプレビューを並べる', enabled:()=>editing, execute:()=>setPaneLayout('split')});
 commands.register({id:'view.layout.preview', title:'プレビューだけ表示', enabled:()=>editing, execute:()=>setPaneLayout('preview')});
+commands.register({id:'navigation.quickOpen', title:'クイックオープン', shortcut:'Ctrl+P', enabled:()=>!!state?.id && !!state.capabilities.multiplePages, execute:showQuickOpen});
+commands.register({id:'navigation.back', title:'前の表示位置へ戻る', shortcut:'Alt+Left', enabled:()=>navigationBack.length>0, execute:()=>navigateHistory('back')});
+commands.register({id:'navigation.forward', title:'次の表示位置へ進む', shortcut:'Alt+Right', enabled:()=>navigationForward.length>0, execute:()=>navigateHistory('forward')});
 
 commands.register({id:'document.open', title:'文書を開く', shortcut:'Ctrl+O', execute:()=>action(async()=>{await flush(); if(await api.Open('')) await reload();})});
 commands.register({id:'document.save', title:'保存', shortcut:'Ctrl+S', enabled:()=>!!state?.id, execute:()=>save(false)});
