@@ -85,3 +85,5 @@
 - SCR-SET-083: Java実行ファイルの検出状態を表示する。
 - SCR-SET-084: PlantUML JARのパスを指定できる。
 - SCR-SET-085: PlantUML JARの存在状態を表示する。
+- SCR-SET-086: KaTeX実行ファイルのパスを指定できる。
+- SCR-SET-087: KaTeX実行ファイルの検出状態を表示する。
