@@ -40,4 +40,12 @@ for (const id of userTemplateIDs) {
 	assert.equal(ids.filter(value => value === id).length, 1, `template manager id ${id}`);
 }
 
+const navigationIDs = ['nav-back','nav-forward','quick-open-dialog','quick-open-input','quick-open-results'];
+for (const id of navigationIDs) {
+	assert.equal(ids.filter(value => value === id).length, 1, `navigation id ${id}`);
+}
+for (const command of ['navigation.quickOpen','navigation.back','navigation.forward']) {
+	assert(commandIDs.includes(command), `missing navigation command ${command}`);
+}
+
 console.log(`checked ${ids.length} HTML ids, ${commandIDs.length} commands, ${settingsFields.length} settings`);
