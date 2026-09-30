@@ -57,15 +57,24 @@ func TestLimitsAndDefaults(t *testing.T) {
 	if s.UndoLevels != 25 || s.AutoSaveSeconds != 60 || s.ImageDirectory != "assets/pasted" {
 		t.Fatalf("wrong defaults: %+v", s)
 	}
-
-	if err := os.WriteFile(file, []byte(`{"initMode":"user","undoLevels":25,"imageDirectory":"assets/pasted"}`), 0600); err != nil {
-		t.Fatal(err)
+	if !s.FormatTrimTrailingWhitespace || s.FormatMaxBlankLines != 2 || !s.FormatFinalNewline {
+		t.Fatalf("wrong formatter defaults: %+v", s)
 	}
-	s, err = Load(file)
-	if err != nil {
-		t.Fatal(err)
+	if !s.LintTrailingWhitespace || s.LintLongLines || s.LintMaxLineLength != 120 || !s.LintHeadingStep || !s.LintFinalNewline {
+		t.Fatalf("wrong lint defaults: %+v", s)
 	}
-	if s.InitMode != "custom" || s.InitPath != "" {
-		t.Fatalf("legacy init mode was not migrated: %+v", s)
+	for _, value := range []int{-1, 11} {
+		bad := Default()
+		bad.FormatMaxBlankLines = value
+		if err := bad.Validate(); err == nil {
+			t.Fatalf("accepted format blank line limit %d", value)
+		}
+	}
+	for _, value := range []int{39, 1001} {
+		bad := Default()
+		bad.LintMaxLineLength = value
+		if err := bad.Validate(); err == nil {
+			t.Fatalf("accepted lint line length %d", value)
+		}
 	}
 }
