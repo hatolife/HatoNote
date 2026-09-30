@@ -2,7 +2,6 @@ import { History, TextState } from './history.js';
 import { NativeView } from './nvim.js';
 import { WysiwygEditor, equivalentRenderedHTML, markdownFromRenderedHTML, renderedHTMLHasOmittedRawHTML } from './wysiwyg.js';
 import { CommandRegistry } from './commands.js';
-import { diffLines } from './diff.js';
 type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
 type PaneLayout = 'editor' | 'split' | 'preview';
 type EditorEngine = 'builtin' | 'wysiwyg' | 'neovim';
@@ -14,7 +13,8 @@ interface BookInfo { present: boolean; title: string; detected: boolean; source:
 interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; showMarkdownCheatsheet: boolean; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number; formatTrimTrailingWhitespace: boolean; formatMaxBlankLines: number; formatFinalNewline: boolean; lintTrailingWhitespace: boolean; lintLongLines: boolean; lintMaxLineLength: number; lintHeadingStep: boolean; lintFinalNewline: boolean; mermaidPath: string; javaPath: string; plantumlJar: string; katexPath: string }
 interface Recovery { id: string; filename: string; updated: string }
 interface HistoryEntry { id: string; name: string; kind: 'backup' | 'named'; created: string; size: number }
-interface HistoryPageDiff { page: string; status: 'added' | 'deleted' | 'modified'; history: string; current: string }
+interface HistoryLineDiff { status: 'equal' | 'added' | 'deleted' | 'modified'; historyLine?: number; currentLine?: number; history: string; current: string }
+interface HistoryPageDiff { page: string; status: 'added' | 'deleted' | 'modified'; lines: HistoryLineDiff[] }
 interface Slide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; notes: string; hidePageNumber?: boolean }
 interface SlideDeck { version: number; title: string; theme: string; aspect: string; marginColor?: string; pageNumberEnabled?: boolean; pageNumberPosition?: string; pageNumberStart?: number; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number; slides: Slide[] }
 interface SlidesInfo { deck: SlideDeck; revision: string; canUndo: boolean; canRedo: boolean }
@@ -1580,9 +1580,10 @@ async function showHistoryDiff(entry: HistoryEntry): Promise<void> {
 			header.append(cell);
 		}
 		table.append(header);
-		for (const row of diffLines(page.history, page.current)) {
+		const lineClass: Record<HistoryLineDiff['status'], string> = {equal:'same',added:'add',deleted:'delete',modified:'change'};
+		for (const row of page.lines) {
 			const line = document.createElement('div');
-			line.className = `history-line-diff-row ${row.kind}`;
+			line.className = `history-line-diff-row ${lineClass[row.status]}`;
 			for (const [lineNumber, text] of [[row.historyLine, row.history], [row.currentLine, row.current]] as const) {
 				const cell = document.createElement('div');
 				cell.className = 'history-line-diff-cell';
