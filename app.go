@@ -468,6 +468,11 @@ func (a *App) saveLocked(filename string) error {
 			return err
 		}
 	} else {
+		if a.documentTypeLocked() == document.Markdown {
+			if err := a.session.SetManifestValue(document.UnsavedDocumentTypeKey, nil); err != nil {
+				return err
+			}
+		}
 		if err := a.session.Save(a.base, abs, version, a.cfg); err != nil {
 			return err
 		}
