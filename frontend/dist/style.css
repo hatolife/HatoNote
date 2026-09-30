@@ -825,3 +825,20 @@ body.settings-screen-open #settings-dialog{position:fixed;left:56px;top:34px;rig
 .history-line-diff-row.change .history-line-diff-cell:first-child{background:color-mix(in srgb,#d35f5f 13%,transparent)}
 .history-line-diff-row.change .history-line-diff-cell:nth-child(2){background:color-mix(in srgb,#45a66b 13%,transparent)}
 @media(max-width:760px){.history-line-diff-header,.history-line-diff-row{grid-template-columns:1fr}.history-line-diff-header span+span,.history-line-diff-cell+.history-line-diff-cell{border-left:0;border-top:1px solid var(--line)}}
+
+
+/* User templates */
+#user-template-settings{column-span:all!important}
+.user-template-manager{display:grid;grid-template-columns:minmax(220px,.7fr) minmax(320px,1.3fr);gap:14px}
+.user-template-list-pane,.user-template-editor-pane{min-width:0}
+.user-template-new-actions,.user-template-actions{display:flex;gap:7px;flex-wrap:wrap}
+.user-template-new-actions{margin-bottom:9px}
+.user-template-actions{justify-content:flex-end;margin-top:9px}
+#user-template-list{display:grid;gap:5px;max-height:300px;overflow:auto}
+.user-template-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;width:100%;text-align:left}
+.user-template-item strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.user-template-item span{color:var(--muted);font-size:10px}
+#user-template-content{display:block;width:100%;height:220px;min-height:140px;resize:vertical;flex:none;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--text);padding:10px 12px;font:12px/1.6 Consolas,"Yu Gothic",monospace}
+#user-template-error{color:#d56161;white-space:pre-wrap}
+.user-template-empty{padding:14px;text-align:center;color:var(--muted);font-size:11px}
+@media(max-width:760px){.user-template-manager{grid-template-columns:1fr}#user-template-list{max-height:180px}}
