@@ -10,7 +10,7 @@ interface Snapshot { filename: string; entry: string; pages: string[]; assets: s
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
 interface BookContents { revision: string; entries: TocEntry[]; unlisted: string[]; canUndo: boolean; canRedo: boolean }
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
-interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; showMarkdownCheatsheet: boolean; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number; formatTrimTrailingWhitespace: boolean; formatMaxBlankLines: number; formatFinalNewline: boolean; lintTrailingWhitespace: boolean; lintLongLines: boolean; lintMaxLineLength: number; lintHeadingStep: boolean; lintFinalNewline: boolean }
+interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; showMarkdownCheatsheet: boolean; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number; formatTrimTrailingWhitespace: boolean; formatMaxBlankLines: number; formatFinalNewline: boolean; lintTrailingWhitespace: boolean; lintLongLines: boolean; lintMaxLineLength: number; lintHeadingStep: boolean; lintFinalNewline: boolean; mermaidPath: string; javaPath: string; plantumlJar: string }
 interface Recovery { id: string; filename: string; updated: string }
 interface HistoryEntry { id: string; name: string; kind: 'backup' | 'named'; created: string; size: number }
 interface HistoryPageDiff { page: string; status: 'added' | 'deleted' | 'modified'; history: string; current: string }
@@ -28,7 +28,7 @@ interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
 interface Backend {
-	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>;
+	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>; CheckDiagramDependencies(mermaidPath:string,javaPath:string,plantUMLJar:string):Promise<Dependency[]>;
 	StartPresentation(slides:Array<Slide & {html:string}>,index:number):Promise<PresentationState>; PresentationState():Promise<PresentationState>; PresentationCommand(command:string,index:number):Promise<void>;StopPresentation():Promise<void>;
 	Slides(): Promise<SlidesInfo>; PrepareSlides(): Promise<SlidesInfo>; ChangeSlide(revision: string, id: string, operation: string, value: string): Promise<SlidesInfo>; ConfigureSlides(revision: string, deck: SlideDeck): Promise<SlidesInfo>; RenderSlide(text: string, layout: string): Promise<string>;
 	ConvertDocumentType(target: string): Promise<void>;
@@ -38,10 +38,10 @@ interface Backend {
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
-	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
+	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	References(): Promise<ReferenceSet>; SaveReference(reference: ReferenceItem): Promise<ReferenceItem>; DeleteReference(id: string): Promise<void>; ApplyReferences(page: string): Promise<string>;
-	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; OpenDataFolder(): Promise<void>;
+	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; ChooseMermaid(): Promise<string>; ChooseJava(): Promise<string>; ChoosePlantUMLJar(): Promise<string>; OpenDataFolder(): Promise<void>;
 	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; HistoryDiff(id: string): Promise<HistoryPageDiff[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
 	StartNative(): Promise<boolean>; NativeOpen(name: string): Promise<void>;
 	NativePoll(): Promise<{name: string; text: string; changed: boolean; canUndo: boolean; canRedo: boolean}>;
@@ -865,6 +865,41 @@ function syncScroll(source: ScrollSource, ratio: number, force = false): void {
 editor.addEventListener('scroll', () => syncScroll('editor', scrollRatio(editor.scrollTop, editor.scrollHeight, editor.clientHeight)), {passive:true});
 wysiwygContent.addEventListener('scroll', () => syncScroll('wysiwyg', scrollRatio(wysiwyg.scrollTop, wysiwyg.scrollHeight, wysiwyg.clientHeight)), {passive:true});
 
+async function enhanceDiagramBlocks(doc: Document): Promise<void> {
+	const blocks = [...doc.querySelectorAll<HTMLPreElement>('pre')];
+	for (const pre of blocks) {
+		const code = pre.firstElementChild;
+		if (!(code instanceof HTMLElement) || code.tagName !== 'CODE') continue;
+		let kind = '';
+		if (code.classList.contains('language-mermaid')) kind = 'mermaid';
+		else if (code.classList.contains('language-plantuml')) kind = 'plantuml';
+		else if (code.classList.contains('language-puml')) kind = 'puml';
+		if (!kind) continue;
+		const source = code.textContent || '';
+		try {
+			const dataURI = await api.RenderDiagram(kind, source);
+			const figure = doc.createElement('figure');
+			figure.className = 'diagram-render';
+			const image = doc.createElement('img');
+			image.src = dataURI;
+			image.alt = kind === 'mermaid' ? 'Mermaid図' : 'PlantUML図';
+			figure.append(image);
+			pre.replaceWith(figure);
+		} catch (error) {
+			pre.classList.add('diagram-fallback');
+			pre.title = String(error);
+			const details = doc.createElement('details');
+			details.className = 'diagram-error';
+			const summary = doc.createElement('summary');
+			summary.textContent = (kind === 'mermaid' ? 'Mermaid' : 'PlantUML') + 'を表示できません';
+			const message = doc.createElement('span');
+			message.textContent = String(error);
+			details.append(summary, message);
+			pre.before(details);
+		}
+	}
+}
+
 async function render(): Promise<void> {
 	if (!state?.id) return;
 	if (documentIs('slides')) { await renderSlidePreview(); return; }
@@ -875,6 +910,7 @@ async function render(): Promise<void> {
 	const html = await api.Render(editor.value);
 	if (ticket !== renderID || sourcePage !== current) return;
 	const doc = new DOMParser().parseFromString(html, 'text/html');
+	await enhanceDiagramBlocks(doc);
 	if (!bookInfo?.present) {
 		markdownHeadingPage = sourcePage;
 		markdownHeadings = [...doc.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6')]
@@ -945,7 +981,7 @@ async function render(): Promise<void> {
 		});
 	};
 	// スクリプト、フォーム、外部画像の読み込みをプレビュー内で禁止します。
-	preview.srcdoc = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${location.origin}; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><style>
+	preview.srcdoc = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${location.origin} data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><style>
 		:root{color-scheme:${dark ? 'dark' : 'light'}}body{background:${paperColor};color:${textColor};font:15px/1.9 'Segoe UI','Yu Gothic',sans-serif;padding:20px 32px;overflow-wrap:anywhere}.mdbook-summary{max-width:720px;margin:0 auto;padding:18px 8px 48px}.mdbook-summary h3{font-size:1.05rem;margin:26px 0 8px;padding:0 10px 6px;border-bottom:1px solid ${lineColor}}.mdbook-summary a{display:block;padding-top:6px;padding-bottom:6px;padding-right:10px;border-radius:5px;color:${textColor};text-decoration:none}.mdbook-summary a:hover{background:${accentColor}18;color:${accentColor}}.mdbook-summary a.draft{color:${mutedColor}}.mdbook-summary hr{margin:20px 0;border:0;border-top:1px solid ${lineColor}}h1,h2,h3{line-height:1.4}h1{font-size:28px;border-bottom:1px solid ${lineColor};padding-bottom:14px}h2{margin-top:32px;font-size:22px}img{max-width:100%;height:auto}pre{padding:16px;background:${dark ? '#ffffff0d' : '#00000008'};overflow:auto;border-radius:6px}code{font-family:Consolas,monospace;font-size:.9em}table{border-collapse:collapse;width:100%}td,th{border:1px solid ${lineColor};padding:7px 12px;text-align:left}blockquote{border-left:3px solid ${accentColor};padding-left:18px;margin-left:0;color:${mutedColor}}a{color:${accentColor}}hr{border:0;border-top:1px solid ${lineColor}}
 	</style></head><body>${doc.body.innerHTML}</body></html>`;
 }
@@ -1325,7 +1361,7 @@ function showSettings(): void {
 		if (!control) continue;
 		if (typeof value === 'boolean') (control as HTMLInputElement).checked = value; else control.value = String(value);
 	}
-	showAppDialog(settingsDialog);void checkDependencies();
+	showAppDialog(settingsDialog);void checkDependencies();void checkDiagramDependencies();
 }
 element('markdown-cheatsheet').onclick = () => runCommand('help.markdownCheatsheet');
 element('settings').onclick = () => runCommand('app.settings');
@@ -1347,6 +1383,18 @@ element('choose-init').onclick = () => void action(async () => {
 	element<HTMLInputElement>('init-path').value = name;
 	settingsDialog.querySelector<HTMLSelectElement>('[name="initMode"]')!.value = 'custom';
 	void checkDependencies();
+});
+element('choose-mermaid').onclick = () => void action(async () => {
+	const name = await api.ChooseMermaid();
+	if (name) { element<HTMLInputElement>('mermaid-path').value = name; void checkDiagramDependencies(); }
+});
+element('choose-java').onclick = () => void action(async () => {
+	const name = await api.ChooseJava();
+	if (name) { element<HTMLInputElement>('java-path').value = name; void checkDiagramDependencies(); }
+});
+element('choose-plantuml').onclick = () => void action(async () => {
+	const name = await api.ChoosePlantUMLJar();
+	if (name) { element<HTMLInputElement>('plantuml-jar').value = name; void checkDiagramDependencies(); }
 });
 element<HTMLInputElement>('init-path').addEventListener('input', event => {
 	if ((event.currentTarget as HTMLInputElement).value.trim()) {
@@ -2211,6 +2259,7 @@ function sendFrame(frame: HTMLIFrameElement, data: Record<string, unknown>): voi
 async function slideHTML(slide: Slide, text?: string): Promise<string> {
 	const html = await api.RenderSlide(text ?? await api.Text(slide.file), slide.layout);
 	const doc = new DOMParser().parseFromString(html, 'text/html');
+	await enhanceDiagramBlocks(doc);
 	for (const image of doc.querySelectorAll('img')) {
 		const target = resolveLink(image.getAttribute('src') || '', slide.file);
 		if (target) image.src = `${location.origin}/bundle/${target.path.split('/').map(encodeURIComponent).join('/')}`;
@@ -2250,7 +2299,7 @@ function setThumbnail(frame: HTMLIFrameElement, slide: Slide, html: string, deck
 	const pageNumberValue=(Number.isInteger(deck.pageNumberStart)?deck.pageNumberStart!:1)+pageIndex;
 	const pageNumberPosition=deck.pageNumberPosition||'bottom-right';
 	const pageNumber=deck.pageNumberEnabled&&!slide.hidePageNumber?`<div class="slide-page-number" data-position="${pageNumberPosition}">${pageNumberValue}</div>`:'';
-	frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${location.origin} 'unsafe-inline'; img-src ${location.origin}; base-uri 'none'"><link rel="stylesheet" href="${location.origin}/vendor/reveal.css"><link rel="stylesheet" href="${location.origin}/slides.css"><style>html,body{width:100%;height:100%;background:transparent}.reveal{width:960px;height:${height}px;transform:scale(${scale});transform-origin:0 0}.reveal .slides{position:relative;width:960px;height:${height}px;left:0;top:0;transform:none}.reveal .slides>section{display:block;position:relative;top:0;left:0}</style></head><body><div class="reveal"><div class="slides"><section data-theme="${deck.theme}" data-layout="${slide.layout}" style="${slideTypographyStyle(deck,slide)};${bg?'background-color:'+bg:''}"><div class="slide-content">${html}</div>${pageNumber}</section></div></div></body></html>`;
+	frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${location.origin} 'unsafe-inline'; img-src ${location.origin} data:; base-uri 'none'"><link rel="stylesheet" href="${location.origin}/vendor/reveal.css"><link rel="stylesheet" href="${location.origin}/slides.css"><style>html,body{width:100%;height:100%;background:transparent}.reveal{width:960px;height:${height}px;transform:scale(${scale});transform-origin:0 0}.reveal .slides{position:relative;width:960px;height:${height}px;left:0;top:0;transform:none}.reveal .slides>section{display:block;position:relative;top:0;left:0}</style></head><body><div class="reveal"><div class="slides"><section data-theme="${deck.theme}" data-layout="${slide.layout}" style="${slideTypographyStyle(deck,slide)};${bg?'background-color:'+bg:''}"><div class="slide-content">${html}</div>${pageNumber}</section></div></div></body></html>`;
 }
 let thumbnailObserver: IntersectionObserver | undefined;
 let slideListKey = '';
@@ -2543,6 +2592,30 @@ async function checkDependencies():Promise<void>{
 }
 element('check-dependencies').onclick=()=>void checkDependencies();
 for(const id of ['nvim-path','init-path','mdbook-path'])element(id).addEventListener('input',()=>{window.clearTimeout(dependencyTimer);dependencyTimer=window.setTimeout(()=>void checkDependencies(),300);});
+let diagramDependencyCheck=0, diagramDependencyTimer=0;
+async function checkDiagramDependencies():Promise<void>{
+	const request=++diagramDependencyCheck;
+	for(const id of ['mermaid-status','java-status','plantuml-status']) element(id).textContent='確認中…';
+	try{
+		const results=await api.CheckDiagramDependencies(
+			element<HTMLInputElement>('mermaid-path').value,
+			element<HTMLInputElement>('java-path').value,
+			element<HTMLInputElement>('plantuml-jar').value
+		);
+		if(request!==diagramDependencyCheck)return;
+		for(const result of results){
+			const output=element(result.name==='Mermaid'?'mermaid-status':result.name==='Java'?'java-status':'plantuml-status');
+			output.textContent=result.message;output.dataset.found=String(result.found);
+		}
+	}catch(error){
+		if(request===diagramDependencyCheck)for(const id of ['mermaid-status','java-status','plantuml-status'])element(id).textContent=String(error);
+	}
+}
+element('check-diagram-dependencies').onclick=()=>void checkDiagramDependencies();
+for(const id of ['mermaid-path','java-path','plantuml-jar']) element(id).addEventListener('input',()=>{
+	window.clearTimeout(diagramDependencyTimer);
+	diagramDependencyTimer=window.setTimeout(()=>void checkDiagramDependencies(),300);
+});
 
 let dualDeck: SlideDeck | undefined;
 let dualSlides: Array<Slide & {html:string}> = [];
