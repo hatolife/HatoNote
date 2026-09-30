@@ -46,11 +46,31 @@ func TestHistoryDiffDetectsMarkdownChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	status := map[string]string{}
+	pages := map[string]HistoryPageDiff{}
 	for _, page := range diff {
 		status[page.Page] = page.Status
+		pages[page.Page] = page
 	}
 	if status["本文.md"] != "modified" || status["added.md"] != "added" || status["removed.md"] != "deleted" {
 		t.Fatalf("diff = %+v", diff)
+	}
+	for _, name := range []string{"本文.md", "added.md", "removed.md"} {
+		if len(pages[name].Lines) == 0 {
+			t.Fatalf("%s has no line diff: %+v", name, pages[name])
+		}
+	}
+	containsStatus := func(lines []HistoryLineDiff, want string) bool {
+		for _, line := range lines {
+			if line.Status == want {
+				return true
+			}
+		}
+		return false
+	}
+	if !containsStatus(pages["本文.md"].Lines, "modified") ||
+		!containsStatus(pages["added.md"].Lines, "added") ||
+		!containsStatus(pages["removed.md"].Lines, "deleted") {
+		t.Fatalf("line diff statuses = %+v", pages)
 	}
 }
 
