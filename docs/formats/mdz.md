@@ -36,3 +36,5 @@
 - FORMAT-MDZ-041: ページ順を保存する場合は `x-hatonote-pageOrder` を使用する。
 - FORMAT-MDZ-042: HatoNoteは旧製品固有のページ順キーを読み書きしない。
 - FORMAT-MDZ-043: ページ順キーの別名を定義しない。
+- FORMAT-MDZ-044: 引用元メタデータを保存する場合は `x-hatonote-references` を使用する。
+- FORMAT-MDZ-045: `x-hatonote-references` は通常MDZの引用元正規データとして扱う。
