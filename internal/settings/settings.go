@@ -17,6 +17,7 @@ type Settings struct {
 	Theme             string `json:"theme"`
 	Accent            string `json:"accent"`
 	Editor            string `json:"editor"`
+	ShowMarkdownCheatsheet bool `json:"showMarkdownCheatsheet"`
 	NvimPath          string `json:"nvimPath"`
 	InitMode          string `json:"initMode"`
 	InitPath          string `json:"initPath"`
@@ -43,7 +44,7 @@ type Settings struct {
 }
 
 func Default() Settings {
-	return Settings{Theme: "system", Accent: "blue", Editor: "neovim", InitMode: "custom", UndoLevels: 1000, FontFamily: "Consolas, 'Yu Gothic', monospace", FontSize: 15, ImageDirectory: "images", ImageName: "{date}-{time}-{counter}", AutoSave: false, AutoSaveSeconds: 60, BackupGenerations: 10, BackupMiB: 512, FormatTrimTrailingWhitespace: true, FormatMaxBlankLines: 2, FormatFinalNewline: true, LintTrailingWhitespace: true, LintLongLines: false, LintMaxLineLength: 120, LintHeadingStep: true, LintFinalNewline: true}
+	return Settings{Theme: "system", Accent: "blue", Editor: "neovim", ShowMarkdownCheatsheet: true, InitMode: "custom", UndoLevels: 1000, FontFamily: "Consolas, 'Yu Gothic', monospace", FontSize: 15, ImageDirectory: "images", ImageName: "{date}-{time}-{counter}", AutoSave: false, AutoSaveSeconds: 60, BackupGenerations: 10, BackupMiB: 512, FormatTrimTrailingWhitespace: true, FormatMaxBlankLines: 2, FormatFinalNewline: true, LintTrailingWhitespace: true, LintLongLines: false, LintMaxLineLength: 120, LintHeadingStep: true, LintFinalNewline: true}
 }
 
 func (s Settings) Validate() error {
