@@ -84,7 +84,7 @@ func TestDocumentTemplates(t *testing.T) {
 	if app.session.Doc.Entry != "本文.md" || !strings.Contains(string(app.session.Doc.Files["本文.md"]), "# 議事録") {
 		t.Fatalf("document template = %q", app.session.Doc.Files["本文.md"])
 	}
-	if _, err := app.NewDocumentFromTemplate("missing"); err == nil {
+	if _, err := documentTemplateContent("missing"); err == nil {
 		t.Fatal("unknown document template accepted")
 	}
 }
