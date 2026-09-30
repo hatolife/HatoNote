@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -576,9 +577,10 @@ func (a *App) History() ([]workspace.HistoryEntry, error) {
 }
 
 type HistoryPageDiff struct {
-	Page   string            `json:"page"`
-	Status string            `json:"status"`
-	Lines  []HistoryLineDiff `json:"lines"`
+	Page    string `json:"page"`
+	Status  string `json:"status"`
+	History string `json:"history"`
+	Current string `json:"current"`
 }
 
 // HistoryDiff は指定履歴と現在のMarkdown本文をページ単位で比較します。
@@ -624,12 +626,12 @@ func (a *App) HistoryDiff(id string) ([]HistoryPageDiff, error) {
 			status = "added"
 		case !currentOK && historyOK:
 			status = "deleted"
-		case currentOK && historyOK && string(current) != string(history):
+		case currentOK && historyOK && !bytes.Equal(current, history):
 			status = "modified"
 		default:
 			continue
 		}
-		result = append(result, HistoryPageDiff{Page:name, Status:status, Lines:historyLineDiff(string(history), string(current))})
+		result = append(result, HistoryPageDiff{Page:name, Status:status, History:string(history), Current:string(current)})
 	}
 	return result, nil
 }
