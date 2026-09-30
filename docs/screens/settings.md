@@ -74,3 +74,12 @@
 - SCR-SET-075: Lintの最大行長を設定できる。
 - SCR-SET-076: Lintの見出しレベル飛び検出を設定できる。
 - SCR-SET-077: Lintの末尾改行検出を設定できる。
+
+## 図表
+
+- SCR-SET-080: Mermaid実行ファイルのパスを指定できる。
+- SCR-SET-081: Mermaid実行ファイルの検出状態を表示する。
+- SCR-SET-082: Java実行ファイルのパスを指定できる。
+- SCR-SET-083: Java実行ファイルの検出状態を表示する。
+- SCR-SET-084: PlantUML JARのパスを指定できる。
+- SCR-SET-085: PlantUML JARの存在状態を表示する。
