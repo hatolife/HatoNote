@@ -32,7 +32,7 @@ interface Backend {
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
-	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>;
+	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; OpenDataFolder(): Promise<void>;
 	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; HistoryDiff(id: string): Promise<HistoryPageDiff[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
@@ -536,6 +536,7 @@ async function reload(startEditing = false): Promise<void> {
 	element('welcome').hidden = !!state.id; element('workspace').hidden = !state.id; element('editing').hidden = !state.id;
 	for (const id of ['save','save-as','sidebar-toggle','search']) element(id).hidden = !state.id;
 	element('history').hidden = !state.id || !state.filename;
+	element('export').hidden = !state.id;
 	updateEditing();
 	if (!state.id) { current = ''; refreshTitle(); return; }
 	if (startEditing) { editing = true; activeEngine = initialEditorEngine(); if (activeEngine === 'neovim') await api.StartNative(); state = await api.State(); updateEditing(); }
@@ -971,6 +972,13 @@ async function save(as: boolean): Promise<void> {
 		}
 	});
 }
+async function exportDocument(format: 'html' | 'pdf'): Promise<void> {
+	if (!state?.id) return;
+	await action(async () => {
+		await flush();
+		if (await api.Export(format)) status(format === 'html' ? '単一HTMLへエクスポートしました' : 'PDFへエクスポートしました');
+	});
+}
 async function insertImage(name: string): Promise<void> {
 	if (!name) return;
 	const up = '../'.repeat(current.split('/').length - 1);
@@ -1299,6 +1307,7 @@ element('create-named-version').onclick = () => void action(async () => {
 	status('名前付き世代を保存しました');
 });
 element('history').onclick = () => runCommand('document.history');
+element('export').onclick = () => showAppDialog(element<HTMLDialogElement>('export-dialog'));
 
 commands.register({id:'document.new', title:'新規文書', execute:()=>showAppDialog(newDialog)});
 commands.register({id:'document.open', title:'文書を開く', shortcut:'Ctrl+O', execute:()=>action(async()=>{await flush(); if(await api.Open('')) await reload();})});
@@ -1306,6 +1315,8 @@ commands.register({id:'document.save', title:'保存', shortcut:'Ctrl+S', enable
 commands.register({id:'document.saveAs', title:'名前を付けて保存', shortcut:'Ctrl+Shift+S', enabled:()=>!!state?.id, execute:()=>save(true)});
 commands.register({id:'document.search', title:'文書内検索', shortcut:'Ctrl+F', enabled:()=>!!state?.id, execute:showSearch});
 commands.register({id:'document.history', title:'バックアップ履歴', enabled:()=>!!state?.filename, execute:showHistory});
+commands.register({id:'export.html', title:'単一HTMLへエクスポート', enabled:()=>!!state?.id, execute:()=>exportDocument('html')});
+commands.register({id:'export.pdf', title:'PDFへエクスポート', enabled:()=>!!state?.id, execute:()=>exportDocument('pdf')});
 commands.register({id:'help.markdownCheatsheet', title:'Markdown早見表', shortcut:'Ctrl+/', enabled:()=>editing, execute:showMarkdownCheatsheet});
 commands.register({id:'app.settings', title:'設定', execute:showSettings});
 
@@ -1347,6 +1358,14 @@ commandPaletteInput.addEventListener('keydown', event => {
 	event.preventDefault();
 	first.click();
 });
+
+for (const button of element('export-dialog').querySelectorAll<HTMLButtonElement>('[data-export-format]')) {
+	button.onclick = () => {
+		const format = button.dataset.exportFormat as 'html' | 'pdf';
+		element<HTMLDialogElement>('export-dialog').close();
+		runCommand(format === 'html' ? 'export.html' : 'export.pdf');
+	};
+}
 
 element('data-folder').onclick = () => void api.OpenDataFolder();
 async function showRecoveries(): Promise<void> {
