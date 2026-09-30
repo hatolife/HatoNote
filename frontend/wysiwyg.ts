@@ -5,7 +5,7 @@ export interface WysiwygOptions {
 	resolveImage(reference: string): string | null;
 }
 
-const blockTags = new Set(['P','DIV','H1','H2','H3','H4','H5','H6','UL','OL','BLOCKQUOTE','PRE','TABLE','HR']);
+const blockTags = new Set(['P','DIV','H1','H2','H3','H4','H5','H6','UL','OL','BLOCKQUOTE','PRE','TABLE','HR','DETAILS','SUMMARY','SECTION']);
 
 function trimBlock(text: string): string {
 	return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -54,6 +54,17 @@ function serializeInline(node: Node): string {
 	}
 	case 'BR':
 		return '  \n';
+	case 'SUP': {
+		const citation = node.dataset.hatonoteCitation;
+		if (citation) return `[@${citation}]`;
+		return inner();
+	}
+	case 'SPAN': {
+		const styles: string[] = [];
+		if (node.style.color) styles.push(`color:${node.style.color}`);
+		if (node.style.fontSize) styles.push(`font-size:${node.style.fontSize}`);
+		return styles.length ? `<span style="${styles.join(';')}">${inner()}</span>` : inner();
+	}
 	case 'INPUT':
 		return '';
 	default:
@@ -109,10 +120,25 @@ function serializeSlideColumns(node: HTMLElement): string {
 	return columns.map(column => trimBlock(Array.from(column.childNodes).map(serializeBlock).join(''))).join('\n\n<!-- column -->\n\n') + '\n\n';
 }
 
+function decodeBase64URL(value: string): string {
+	try {
+		const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+		const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+		const bytes = Uint8Array.from(atob(padded), char => char.charCodeAt(0));
+		return new TextDecoder().decode(bytes);
+	} catch {
+		return '';
+	}
+}
+
 function serializeBlock(node: Node): string {
 	if (node.nodeType === Node.TEXT_NODE) return (node.textContent || '').trim() ? escapeText(node.textContent || '') : '';
 	if (!(node instanceof HTMLElement)) return '';
 	if (node.tagName === 'DIV' && node.classList.contains('slide-columns')) return serializeSlideColumns(node);
+	if (node.tagName === 'SECTION' && node.classList.contains('hatonote-references')) {
+		const source = decodeBase64URL(node.dataset.hatonoteSource || '');
+		return source ? source.trim() + '\n\n' : '';
+	}
 	switch (node.tagName) {
 	case 'H1':
 	case 'H2':
@@ -141,6 +167,12 @@ function serializeBlock(node: Node): string {
 	}
 	case 'TABLE':
 		return serializeTable(node as HTMLTableElement);
+	case 'DETAILS': {
+		const summary = Array.from(node.children).find(child => child.tagName === 'SUMMARY') as HTMLElement | undefined;
+		const summaryText = summary ? trimBlock(Array.from(summary.childNodes).map(serializeInline).join('')) : '詳細';
+		const body = trimBlock(Array.from(node.childNodes).filter(child => child !== summary).map(serializeBlock).join(''));
+		return `<details${node.hasAttribute('open') ? ' open' : ''}>\n<summary>${summaryText}</summary>\n\n${body}\n\n</details>\n\n`;
+	}
 	case 'HR':
 		return '---\n\n';
 	default: {
@@ -172,7 +204,7 @@ function canonicalNode(node: Node, preserveWhitespace = false): string {
 	const tag = node.tagName.toLowerCase();
 	const preserve = preserveWhitespace || tag === 'pre' || tag === 'code';
 	const attrs: string[] = [];
-	for (const name of ['href','src','title','start','align','type','checked','class']) {
+	for (const name of ['href','src','title','start','align','type','checked','class','style','open','id','data-hatonote-citation','data-hatonote-source']) {
 		if (node.hasAttribute(name)) attrs.push(`${name}=${JSON.stringify(node.getAttribute(name) || '')}`);
 	}
 	const children = Array.from(node.childNodes).map(child => canonicalNode(child, preserve)).filter(Boolean).join(',');
@@ -194,6 +226,9 @@ export class WysiwygEditor {
 	private markdown = '';
 	private beforeInput = '';
 	private commanding = false;
+	private tableTools: HTMLElement | null = null;
+	private colorInput: HTMLInputElement | null = null;
+	private fontSizeSelect: HTMLSelectElement | null = null;
 
 	constructor(
 		private root: HTMLElement,
@@ -231,6 +266,26 @@ export class WysiwygEditor {
 			this.runCommand('formatBlock', this.blockSelect.value);
 			this.blockSelect.value = 'p';
 		});
+		this.tableTools = this.toolbar.querySelector<HTMLElement>('#wysiwyg-table-tools');
+		for (const button of this.toolbar.querySelectorAll<HTMLButtonElement>('[data-wysiwyg-table-command]')) {
+			button.addEventListener('mousedown', event => event.preventDefault());
+			button.addEventListener('click', () => this.runTableCommand(button.dataset.wysiwygTableCommand || ''));
+		}
+		this.colorInput = this.toolbar.querySelector<HTMLInputElement>('#wysiwyg-color');
+		this.colorInput?.addEventListener('change', () => this.applyInlineStyle('color', this.colorInput!.value));
+		this.fontSizeSelect = this.toolbar.querySelector<HTMLSelectElement>('#wysiwyg-font-size');
+		this.fontSizeSelect?.addEventListener('change', () => {
+			const value = this.fontSizeSelect!.value;
+			if (value) this.applyInlineStyle('fontSize', `${value}px`);
+			this.fontSizeSelect!.value = '';
+		});
+		const updateTable = () => this.updateTableTools();
+		this.content.addEventListener('keyup', updateTable);
+		this.content.addEventListener('mouseup', updateTable);
+		this.content.addEventListener('click', updateTable);
+		document.addEventListener('selectionchange', () => {
+			if (!this.root.hidden && this.contains(document.getSelection()?.anchorNode || null)) this.updateTableTools();
+		});
 	}
 
 	load(markdown: string, html: string): void {
@@ -251,15 +306,17 @@ export class WysiwygEditor {
 		this.commanding = false;
 		this.markdown = markdown;
 		this.beforeInput = '';
+		this.updateTableTools();
 	}
 
 	setActive(active: boolean): void {
 		this.root.hidden = !active;
+		if (!active && this.tableTools) this.tableTools.hidden = true;
 	}
 
 	setEditable(editable: boolean): void {
 		this.content.contentEditable = String(editable);
-		this.toolbar.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button,select').forEach(control => control.disabled = !editable);
+		this.toolbar.querySelectorAll<HTMLButtonElement | HTMLSelectElement | HTMLInputElement>('button,select,input').forEach(control => control.disabled = !editable);
 	}
 
 	focus(): void {
@@ -298,6 +355,167 @@ export class WysiwygEditor {
 		this.commit('insertImage', before);
 	}
 
+	insertCitation(id: string): void {
+		const before = this.markdown;
+		const sup = document.createElement('sup');
+		sup.dataset.hatonoteCitation = id;
+		const link = document.createElement('a');
+		link.href = '#hatonote-references';
+		link.textContent = '[引用]';
+		sup.append(link);
+		this.insertNode(sup, true);
+		this.commit('insertCitation', before);
+	}
+
+	private selectionRange(): Range | null {
+		const selection = window.getSelection();
+		if (!selection || !selection.rangeCount || !this.content.contains(selection.anchorNode)) return null;
+		return selection.getRangeAt(0);
+	}
+
+	private insertNode(node: Node, selectContents = false): void {
+		this.focus();
+		const selection = window.getSelection();
+		let range = this.selectionRange();
+		if (!range) {
+			range = document.createRange();
+			range.selectNodeContents(this.content);
+			range.collapse(false);
+		}
+		range.deleteContents();
+		range.insertNode(node);
+		range.setStartAfter(node);
+		range.collapse(true);
+		if (selectContents && node instanceof HTMLElement) range.selectNodeContents(node);
+		selection?.removeAllRanges();
+		selection?.addRange(range);
+	}
+
+	private insertTable(): void {
+		const before = this.markdown;
+		const table = document.createElement('table');
+		const head = table.createTHead().insertRow();
+		for (let col = 0; col < 3; col++) {
+			const cell = document.createElement('th');
+			cell.textContent = `見出し${col + 1}`;
+			head.append(cell);
+		}
+		const body = table.createTBody();
+		for (let row = 0; row < 2; row++) {
+			const tr = body.insertRow();
+			for (let col = 0; col < 3; col++) tr.insertCell().textContent = 'セル';
+		}
+		this.insertNode(table);
+		const first = table.rows[0]?.cells[0];
+		if (first) {
+			const range = document.createRange();
+			range.selectNodeContents(first);
+			const selection = window.getSelection();
+			selection?.removeAllRanges();
+			selection?.addRange(range);
+		}
+		this.commit('insertTable', before);
+		this.updateTableTools();
+	}
+
+	private insertDetails(): void {
+		const before = this.markdown;
+		const details = document.createElement('details');
+		details.open = true;
+		const summary = document.createElement('summary');
+		summary.textContent = '折りたたみ';
+		const paragraph = document.createElement('p');
+		paragraph.textContent = '内容';
+		details.append(summary, paragraph);
+		this.insertNode(details);
+		const range = document.createRange();
+		range.selectNodeContents(summary);
+		const selection = window.getSelection();
+		selection?.removeAllRanges();
+		selection?.addRange(range);
+		this.commit('insertDetails', before);
+	}
+
+	private applyInlineStyle(property: 'color' | 'fontSize', value: string): void {
+		const range = this.selectionRange();
+		if (!range) return;
+		const before = this.markdown;
+		const span = document.createElement('span');
+		span.style[property] = value;
+		if (range.collapsed) span.textContent = '文字';
+		else span.append(range.extractContents());
+		range.insertNode(span);
+		range.selectNodeContents(span);
+		const selection = window.getSelection();
+		selection?.removeAllRanges();
+		selection?.addRange(range);
+		this.commit('formatStyle', before);
+	}
+
+	private currentCell(): HTMLTableCellElement | null {
+		const selection = window.getSelection();
+		const node = selection?.anchorNode;
+		const element = node instanceof Element ? node : node?.parentElement;
+		const cell = element?.closest('td,th');
+		return cell instanceof HTMLTableCellElement && this.content.contains(cell) ? cell : null;
+	}
+
+	private updateTableTools(): void {
+		if (!this.tableTools) return;
+		this.tableTools.hidden = !this.currentCell();
+	}
+
+	private runTableCommand(command: string): void {
+		const cell = this.currentCell();
+		const row = cell?.parentElement as HTMLTableRowElement | null;
+		const table = cell?.closest('table') as HTMLTableElement | null;
+		if (!cell || !row || !table) return;
+		const before = this.markdown;
+		const rowIndex = row.rowIndex;
+		const columnIndex = cell.cellIndex;
+		const columnCount = Math.max(...Array.from(table.rows).map(item => item.cells.length));
+		switch (command) {
+		case 'rowBefore':
+		case 'rowAfter': {
+			const index = command === 'rowBefore' ? rowIndex : rowIndex + 1;
+			const inserted = table.insertRow(index);
+			for (let col = 0; col < columnCount; col++) {
+				const newCell = inserted.insertCell();
+				newCell.textContent = 'セル';
+				const align = table.rows[index === 0 ? 1 : 0]?.cells[col]?.getAttribute('align');
+				if (align) newCell.setAttribute('align', align);
+			}
+			break;
+		}
+		case 'rowDelete':
+			if (table.rows.length > 1) table.deleteRow(rowIndex);
+			break;
+		case 'columnBefore':
+		case 'columnAfter': {
+			const index = command === 'columnBefore' ? columnIndex : columnIndex + 1;
+			for (const tableRow of Array.from(table.rows)) {
+				const newCell = tableRow.insertCell(Math.min(index, tableRow.cells.length));
+				newCell.textContent = tableRow.rowIndex === 0 ? '見出し' : 'セル';
+			}
+			break;
+		}
+		case 'columnDelete':
+			if (columnCount > 1) for (const tableRow of Array.from(table.rows)) if (tableRow.cells[columnIndex]) tableRow.deleteCell(columnIndex);
+			break;
+		case 'alignLeft':
+		case 'alignCenter':
+		case 'alignRight': {
+			const align = command === 'alignLeft' ? 'left' : command === 'alignCenter' ? 'center' : 'right';
+			for (const tableRow of Array.from(table.rows)) if (tableRow.cells[columnIndex]) tableRow.cells[columnIndex].setAttribute('align', align);
+			break;
+		}
+		default:
+			return;
+		}
+		this.commit('tableEdit', before);
+		this.updateTableTools();
+	}
+
 	private commit(kind: string, before: string): void {
 		const after = markdownFromElement(this.content);
 		this.markdown = after;
@@ -314,6 +532,14 @@ export class WysiwygEditor {
 			case 'inlineCode':
 				this.wrapInlineCode();
 				break;
+			case 'insertTable':
+				this.commanding = false;
+				this.insertTable();
+				return;
+			case 'insertDetails':
+				this.commanding = false;
+				this.insertDetails();
+				return;
 			case 'createLink': {
 				const selection = window.getSelection();
 				if (!selection || selection.isCollapsed || !this.content.contains(selection.anchorNode)) break;
