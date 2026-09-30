@@ -44,9 +44,10 @@ func dependencyForExecutable(name, configured, fallback string) Dependency {
 }
 
 // CheckDiagramDependencies はMermaidとPlantUMLの描画依存を設定保存前に確認します。
-func (a *App) CheckDiagramDependencies(mermaidPath, javaPath, plantUMLJar string) []Dependency {
+func (a *App) CheckDiagramDependencies(mermaidPath, javaPath, plantUMLJar, katexPath string) []Dependency {
 	mermaid := dependencyForExecutable("Mermaid", mermaidPath, "mmdc")
 	java := dependencyForExecutable("Java", javaPath, "java")
+	katex := dependencyForExecutable("KaTeX", katexPath, "katex")
 	plantuml := Dependency{Name:"PlantUML JAR", Path:strings.TrimSpace(plantUMLJar)}
 	if plantuml.Path == "" {
 		plantuml.Message = "未指定です。PlantUMLを使用する場合はplantuml.jarを指定してください。"
@@ -59,7 +60,7 @@ func (a *App) CheckDiagramDependencies(mermaidPath, javaPath, plantUMLJar string
 	} else {
 		plantuml.Message = "PlantUML JARを確認できません：" + plantuml.Path
 	}
-	return []Dependency{mermaid, java, plantuml}
+	return []Dependency{mermaid, java, plantuml, katex}
 }
 
 func (a *App) ChooseMermaid() (string, error) {
@@ -72,4 +73,8 @@ func (a *App) ChooseJava() (string, error) {
 
 func (a *App) ChoosePlantUMLJar() (string, error) {
 	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{Title:"plantuml.jarを指定", Filters:[]runtime.FileFilter{{DisplayName:"Java Archive", Pattern:"*.jar"}}})
+}
+
+func (a *App) ChooseKatex() (string, error) {
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{Title:"katexを指定", Filters:[]runtime.FileFilter{{DisplayName:"実行ファイル", Pattern:"*.exe;*.cmd;*.bat"}}})
 }
