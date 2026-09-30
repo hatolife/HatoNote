@@ -716,3 +716,20 @@ footer #status { flex: 1; }
 .lint-result span{font-size:12px;color:var(--muted)}
 .lint-empty{padding:20px;text-align:center;color:var(--muted)}
 #settings-form h3{font-size:12px;margin:10px 0 4px;color:var(--muted)}
+
+
+/* Command macros */
+#macro-dialog{width:min(700px,calc(100vw - 48px));max-height:min(760px,calc(100vh - 72px));overflow:hidden}
+.macro-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.macro-heading h2{margin:0}
+#macro-recording-state{color:var(--muted);font-size:11px}
+.macro-record-controls{display:flex;gap:8px;align-items:center;margin:14px 0}
+.macro-record-controls input{flex:1;margin:0}
+#macro-list{display:grid;gap:7px;max-height:48vh;overflow:auto}
+.macro-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.macro-entry>div:first-child{display:grid;gap:3px;min-width:0}
+.macro-entry strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.macro-entry small{color:var(--muted);font-size:10px}
+.macro-entry>div:last-child{display:flex;gap:6px}
+.macro-empty{padding:20px;text-align:center;color:var(--muted)}
+@media(max-width:620px){.macro-record-controls{align-items:stretch;flex-direction:column}.macro-entry{grid-template-columns:1fr}.macro-entry>div:last-child{justify-content:flex-end}}
