@@ -27,11 +27,19 @@ type Settings struct {
 	AutoSave          bool   `json:"autoSave"`
 	AutoSaveSeconds   int    `json:"autoSaveSeconds"`
 	BackupGenerations int    `json:"backupGenerations"`
-	BackupMiB         int    `json:"backupMiB"`
+	BackupMiB                    int  `json:"backupMiB"`
+	FormatTrimTrailingWhitespace bool `json:"formatTrimTrailingWhitespace"`
+	FormatMaxBlankLines          int  `json:"formatMaxBlankLines"`
+	FormatFinalNewline           bool `json:"formatFinalNewline"`
+	LintTrailingWhitespace       bool `json:"lintTrailingWhitespace"`
+	LintLongLines                bool `json:"lintLongLines"`
+	LintMaxLineLength            int  `json:"lintMaxLineLength"`
+	LintHeadingStep              bool `json:"lintHeadingStep"`
+	LintFinalNewline             bool `json:"lintFinalNewline"`
 }
 
 func Default() Settings {
-	return Settings{Theme: "system", Accent: "blue", Editor: "neovim", InitMode: "custom", UndoLevels: 1000, FontFamily: "Consolas, 'Yu Gothic', monospace", FontSize: 15, ImageDirectory: "images", ImageName: "{date}-{time}-{counter}", AutoSave: false, AutoSaveSeconds: 60, BackupGenerations: 10, BackupMiB: 512}
+	return Settings{Theme: "system", Accent: "blue", Editor: "neovim", InitMode: "custom", UndoLevels: 1000, FontFamily: "Consolas, 'Yu Gothic', monospace", FontSize: 15, ImageDirectory: "images", ImageName: "{date}-{time}-{counter}", AutoSave: false, AutoSaveSeconds: 60, BackupGenerations: 10, BackupMiB: 512, FormatTrimTrailingWhitespace: true, FormatMaxBlankLines: 2, FormatFinalNewline: true, LintTrailingWhitespace: true, LintLongLines: false, LintMaxLineLength: 120, LintHeadingStep: true, LintFinalNewline: true}
 }
 
 func (s Settings) Validate() error {
@@ -70,6 +78,12 @@ func (s Settings) Validate() error {
 	}
 	if s.BackupGenerations < 0 || s.BackupGenerations > 1000 || s.BackupMiB < 1 || s.BackupMiB > 102400 {
 		return fmt.Errorf("バックアップは0〜1000世代、容量は1〜102400MiBで指定してください")
+	}
+	if s.FormatMaxBlankLines < 0 || s.FormatMaxBlankLines > 10 {
+		return fmt.Errorf("連続空行の上限は0〜10で指定してください")
+	}
+	if s.LintMaxLineLength < 40 || s.LintMaxLineLength > 1000 {
+		return fmt.Errorf("Lintの最大行長は40〜1000で指定してください")
 	}
 	return nil
 }
