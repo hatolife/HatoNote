@@ -23,7 +23,7 @@ interface SearchResult { page: string; line: number; start: number; end: number;
 interface ReferenceItem { id: string; title: string; url: string; note: string }
 interface ReferenceSet { version: number; items: ReferenceItem[] }
 interface PageTemplate { id: string; title: string }
-interface DocumentTemplate { id: string; title: string }
+interface DocumentTemplate { id: string; kind: string; title: string }
 interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
@@ -34,7 +34,7 @@ interface Backend {
 	ConvertDocumentType(target: string): Promise<void>;
 	Contents(): Promise<BookContents>; ChangeContents(revision: string, index: number, operation: string, value: string): Promise<BookContents>;
 	RenameBook(revision: string, title: string): Promise<void>; GetBookConfiguration(): Promise<{text: string; revision: string}>; SaveBookConfiguration(revision: string, text: string): Promise<void>;
-	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; DocumentTemplates(): Promise<DocumentTemplate[]>; NewDocumentFromTemplate(templateID: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
+	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; NewBlankDocument(kind: string): Promise<boolean>; DocumentTemplates(): Promise<DocumentTemplate[]>; NewDocumentFromTemplate(templateID: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
@@ -1075,46 +1075,59 @@ function undo(redo: boolean): void {
 	edited(); updateUndoRedo();
 }
 element('undo').onclick = () => undo(false); element('redo').onclick = () => undo(true);
-const newDialog = element<HTMLDialogElement>('new-dialog');
-const documentTemplateOptions = element<HTMLElement>('document-template-options');
+let welcomeFromDocument = false;
 let documentTemplatesLoaded = false;
 async function loadDocumentTemplates(): Promise<void> {
 	if (documentTemplatesLoaded) return;
 	const templates = await api.DocumentTemplates();
-	documentTemplateOptions.replaceChildren();
+	for (const container of document.querySelectorAll<HTMLElement>('.welcome-template-options')) container.replaceChildren();
 	for (const template of templates) {
+		const container = document.querySelector<HTMLElement>(`.welcome-template-options[data-template-kind="${template.kind}"]`);
+		if (!container) continue;
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'document-template-option';
 		const title = document.createElement('strong');
 		title.textContent = template.title;
 		const description = document.createElement('span');
-		description.textContent = '通常MDZとして作成';
+		description.textContent = 'テンプレートから作成';
 		button.append(title, description);
-		button.onclick = () => {
-			newDialog.close();
-			void action(async () => { await flush(); if (await api.NewDocumentFromTemplate(template.id)) await reload(true); });
-		};
-		documentTemplateOptions.append(button);
+		button.onclick = () => void action(async () => {
+			await flush();
+			if (await api.NewDocumentFromTemplate(template.id)) await reload(true);
+		});
+		container.append(button);
 	}
 	documentTemplatesLoaded = true;
 }
-function showNewDocumentDialog(): void {
-	showAppDialog(newDialog);
+function showWelcomeCreation(): void {
+	welcomeFromDocument = !!state?.id;
+	element('welcome').hidden = false;
+	element('workspace').hidden = true;
+	element('welcome-back').hidden = !welcomeFromDocument;
 	void loadDocumentTemplates().catch(error => status(String(error), true));
 }
+function restoreWorkspaceFromWelcome(): void {
+	if (!state?.id) return;
+	welcomeFromDocument = false;
+	element('welcome').hidden = true;
+	element('workspace').hidden = false;
+	element('welcome-back').hidden = true;
+}
 element('new').onclick = () => runCommand('document.new');
-element('welcome-new').onclick = () => runCommand('document.new');
+element('welcome-back').onclick = restoreWorkspaceFromWelcome;
 element('welcome-open').onclick = () => runCommand('document.open');
 element('welcome-recovery').onclick = () => element('recovery').click();
-// 種類のボタンを押すと、そのまま閲覧モードで新しい文書を作成します。
-for (const button of newDialog.querySelectorAll<HTMLButtonElement>('[data-new-kind]')) {
-	button.onclick = () => {
+for (const button of document.querySelectorAll<HTMLButtonElement>('#welcome [data-new-kind][data-new-variant]')) {
+	button.onclick = () => void action(async () => {
+		await flush();
 		const kind = button.dataset.newKind!;
-		newDialog.close();
-		void action(async () => { await flush(); if (await api.NewDocument(kind)) await reload(true); });
-	};
+		const variant = button.dataset.newVariant!;
+		const created = variant === 'blank' ? await api.NewBlankDocument(kind) : await api.NewDocument(kind);
+		if (created) await reload(true);
+	});
 }
+void loadDocumentTemplates().catch(error => status(String(error), true));
 element('open').onclick = () => runCommand('document.open');
 element('save').onclick = () => runCommand('document.save'); element('save-as').onclick = () => runCommand('document.saveAs');
 async function save(as: boolean): Promise<void> {
@@ -1710,7 +1723,7 @@ element('macro-record-stop').onclick = () => {
 element('macro').onclick = () => runCommand('macro.manage');
 commands.register({id:'macro.manage', title:'マクロ管理', execute:showMacroManager});
 
-commands.register({id:'document.new', title:'新規文書', execute:showNewDocumentDialog});
+commands.register({id:'document.new', title:'新規文書', execute:showWelcomeCreation});
 commands.register({id:'page.add', title:'ページを追加', enabled:()=>editing && documentIs('mdz'), execute:showPageDialog});
 commands.register({id:'page.duplicate', title:'現在ページを複製', enabled:()=>editing && documentIs('mdz') && !!current, execute:duplicateCurrentPage});
 commands.register({id:'view.toggleEditing', title:'表示 / 編集を切り替え', enabled:()=>!!state?.id, execute:toggleEditing});
