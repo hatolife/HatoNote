@@ -20,6 +20,7 @@ import (
 
 	"github.com/hatolife/HatoNote/internal/bundle"
 	"github.com/hatolife/HatoNote/internal/process"
+	"github.com/hatolife/HatoNote/internal/settings"
 	"github.com/hatolife/HatoNote/internal/workspace"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	xhtml "golang.org/x/net/html"
@@ -317,6 +318,93 @@ func buildSingleHTML(doc *bundle.Document, title string) ([]byte, error) {
 	return buildDocumentHTML(doc, title)
 }
 
+func exportDiagramKind(code *xhtml.Node) string {
+	if code == nil || code.Type != xhtml.ElementNode || code.Data != "code" {
+		return ""
+	}
+	className, _ := htmlAttribute(code, "class")
+	for _, class := range strings.Fields(className) {
+		switch class {
+		case "language-mermaid":
+			return "mermaid"
+		case "language-plantuml":
+			return "plantuml"
+		case "language-puml":
+			return "puml"
+		}
+	}
+	return ""
+}
+
+func exportNodeText(node *xhtml.Node) string {
+	var output strings.Builder
+	var walk func(*xhtml.Node)
+	walk = func(current *xhtml.Node) {
+		if current.Type == xhtml.TextNode {
+			output.WriteString(current.Data)
+		}
+		for child := current.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(node)
+	return output.String()
+}
+
+func enhanceExportDiagrams(data []byte, cfg settings.Settings) ([]byte, error) {
+	root, err := xhtml.Parse(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	var blocks []*xhtml.Node
+	var walk func(*xhtml.Node)
+	walk = func(node *xhtml.Node) {
+		if node.Type == xhtml.ElementNode && node.Data == "pre" {
+			for child := node.FirstChild; child != nil; child = child.NextSibling {
+				if exportDiagramKind(child) != "" {
+					blocks = append(blocks, node)
+					break
+				}
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(root)
+	for _, pre := range blocks {
+		var code *xhtml.Node
+		for child := pre.FirstChild; child != nil; child = child.NextSibling {
+			if exportDiagramKind(child) != "" {
+				code = child
+				break
+			}
+		}
+		kind := exportDiagramKind(code)
+		if kind == "" {
+			continue
+		}
+		value, renderErr := renderDiagram(kind, exportNodeText(code), cfg)
+		if renderErr != nil {
+			setHTMLAttribute(pre, "title", renderErr.Error())
+			setHTMLAttribute(pre, "data-diagram-error", "true")
+			continue
+		}
+		figure := &xhtml.Node{Type:xhtml.ElementNode, Data:"figure", Attr:[]xhtml.Attribute{{Key:"class", Val:"diagram-render"}}}
+		image := &xhtml.Node{Type:xhtml.ElementNode, Data:"img", Attr:[]xhtml.Attribute{{Key:"src", Val:value}, {Key:"alt", Val:"diagram"}}}
+		figure.AppendChild(image)
+		if parent := pre.Parent; parent != nil {
+			parent.InsertBefore(figure, pre)
+			parent.RemoveChild(pre)
+		}
+	}
+	var output bytes.Buffer
+	if err := xhtml.Render(&output, root); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
+}
+
 func findEdgeExecutable() string {
 	if executable, err := exec.LookPath("msedge"); err == nil {
 		return executable
@@ -401,10 +489,15 @@ func (a *App) Export(format string) (bool, error) {
 	}
 	doc := cloneExportDocument(a.session.Doc)
 	source := a.session.Filename
+	cfg := a.cfg
 	a.mu.Unlock()
 
 	title := exportDocumentTitle(source, doc)
 	data, err := buildSingleHTML(doc, title)
+	if err != nil {
+		return false, err
+	}
+	data, err = enhanceExportDiagrams(data, cfg)
 	if err != nil {
 		return false, err
 	}
