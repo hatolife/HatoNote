@@ -88,3 +88,38 @@ func TestDocumentTemplates(t *testing.T) {
 		t.Fatal("unknown document template accepted")
 	}
 }
+
+
+func TestBlankDocumentKinds(t *testing.T) {
+	for _, kind := range []string{"markdown", "mdz", "mdbook", "slides"} {
+		doc, err := newBlankDocument(kind)
+		if err != nil {
+			t.Fatalf("%s: %v", kind, err)
+		}
+		if doc.Entry == "" || len(doc.Files) == 0 {
+			t.Fatalf("%s blank document is incomplete: %+v", kind, doc)
+		}
+	}
+	markdown, err := newBlankDocument("markdown")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := document.Detect("", markdown); got != document.Markdown {
+		t.Fatalf("blank markdown type = %q", got)
+	}
+	if string(markdown.Files[markdown.Entry]) != "" {
+		t.Fatalf("blank markdown content = %q", markdown.Files[markdown.Entry])
+	}
+}
+
+func TestDocumentTemplatesHaveKinds(t *testing.T) {
+	app := &App{}
+	for _, template := range app.DocumentTemplates() {
+		if template.ID == "" || template.Kind == "" || template.Title == "" {
+			t.Fatalf("template metadata = %+v", template)
+		}
+		if template.Kind != "mdz" {
+			t.Fatalf("unexpected template kind: %+v", template)
+		}
+	}
+}
