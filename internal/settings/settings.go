@@ -100,10 +100,5 @@ func Load(filename string) (Settings, error) {
 	if err := json.Unmarshal(b, &s); err != nil {
 		return s, err
 	}
-	// 旧「普段の設定」は、標準位置のinit.luaを指定する設定へ移行します。
-	if s.InitMode == "user" {
-		s.InitMode = "custom"
-		s.InitPath = ""
-	}
 	return s, s.Validate()
 }
