@@ -72,7 +72,7 @@ try {
 	await screenshot('home');
 	for (const id of ['window-minimise', 'window-maximise', 'window-close']) await page.locator('#' + id).click();
 	assert.deepEqual(await page.evaluate(() => window.windowActions), ['minimise', 'maximise', 'quit']);
-	await page.locator('#new').click(); await page.locator('[data-new-kind=mdbook]').click(); await ready();
+	await page.locator('#new').click(); await page.locator('[data-new-kind=mdbook][data-new-variant=guide]').click(); await ready();
 	assert(await page.locator('#book-heading').isVisible());
 	await verifyDraggable('#sidebar', 'drag');
 	await verifyDraggable('#toc-edit', 'no-drag');
