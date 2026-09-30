@@ -842,3 +842,13 @@ body.settings-screen-open #settings-dialog{position:fixed;left:56px;top:34px;rig
 #user-template-error{color:#d56161;white-space:pre-wrap}
 .user-template-empty{padding:14px;text-align:center;color:var(--muted);font-size:11px}
 @media(max-width:760px){.user-template-manager{grid-template-columns:1fr}#user-template-list{max-height:180px}}
+
+
+/* Page navigation */
+.navigation-buttons{display:flex;gap:4px;flex:0 0 auto}
+.navigation-buttons button{padding:4px 8px;min-width:30px}
+#quick-open-dialog{width:min(680px,calc(100vw - 48px));max-height:min(720px,calc(100vh - 72px));overflow:hidden}
+#quick-open-input{width:100%;margin:14px 0 10px}
+#quick-open-results{display:grid;gap:4px;max-height:52vh;overflow:auto}
+.quick-open-result{width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:9px 11px;border:1px solid transparent;background:transparent}
+.quick-open-result:hover,.quick-open-result:focus-visible{background:var(--active);border-color:var(--line)}
