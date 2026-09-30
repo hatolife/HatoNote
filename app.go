@@ -380,40 +380,7 @@ func (a *App) Update(name, text string) error {
 func (a *App) AddPage(name string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.session == nil {
-		return fmt.Errorf("文書を開いてください")
-	}
-	documentType := a.documentTypeLocked()
-	if documentType == document.Slides {
-		return fmt.Errorf("スライドを追加してください")
-	}
-	if !documentType.Capabilities().MultiplePages {
-		return fmt.Errorf("この文書種別ではページを追加できません")
-	}
-	// 拡張子を省略したページ名には.mdを補います。
-	name = strings.TrimSpace(name)
-	if name != "" && path.Ext(name) == "" && !strings.HasSuffix(name, "/") {
-		name += ".md"
-	}
-	if !bundle.IsMarkdown(name) {
-		return fmt.Errorf("拡張子を.mdにしてください")
-	}
-	if err := a.syncNativeLocked(); err != nil {
-		return err
-	}
-	if err := a.session.Capture(); err != nil {
-		return err
-	}
-	for p := range a.session.Doc.Files {
-		if strings.EqualFold(p, name) {
-			return fmt.Errorf("同名のファイルがあります")
-		}
-	}
-	order := a.session.Doc.Pages()
-	if err := a.session.Put(name, []byte("# 新しいページ\n")); err != nil {
-		return err
-	}
-	return a.session.SetPageOrder(append(order, name))
+	return a.addPageLocked(name, "# 新しいページ\n")
 }
 
 func (a *App) Save(saveAs bool) (bool, error) {
