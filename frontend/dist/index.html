@@ -57,6 +57,22 @@
 <label>文書内の保存先<input name="imageDirectory" required placeholder="images"></label>
 <label>ファイル名（拡張子は自動）<input name="imageName" required placeholder="{date}-{time}-{counter}"></label><p>{date}＝年月日、{time}＝時分秒、{counter}＝連番。同名の画像は上書きしません。Undo後も画像本体は保持します。</p>
 </fieldset>
+<fieldset id="user-template-settings"><legend>テンプレート</legend>
+<p>通常MDZのページ追加と新規文書作成で使うユーザー定義テンプレートを管理します。内蔵テンプレートは変更されません。</p>
+<div class="user-template-manager">
+<section class="user-template-list-pane">
+<div class="user-template-new-actions"><button id="user-template-new-page" type="button">＋ ページ用</button><button id="user-template-new-document" type="button">＋ 文書用</button></div>
+<div id="user-template-list"></div>
+</section>
+<section class="user-template-editor-pane">
+<label>対象<select id="user-template-scope"><option value="page">通常MDZのページ</option><option value="document">通常MDZ文書</option></select></label>
+<label>表示名<input id="user-template-title" maxlength="100" placeholder="テンプレート名"></label>
+<label>Markdown本文<textarea id="user-template-content" rows="12" spellcheck="false"></textarea></label>
+<p id="user-template-error" role="alert"></p>
+<div class="user-template-actions"><button id="user-template-delete" type="button" hidden>削除</button><button id="user-template-save" type="button" class="primary">保存</button></div>
+</section>
+</div>
+</fieldset>
 <fieldset><legend>Markdown品質</legend>
 <h3>Formatter</h3>
 <label class="check"><input name="formatTrimTrailingWhitespace" type="checkbox">コードフェンス外の行末空白を削除</label>
