@@ -74,6 +74,12 @@
 - SCR-MAIN-077: 編集中はキーボードショートカットからMarkdownチートシートを表示できる。
 - SCR-MAIN-078: Markdownチートシートは現在の編集内容を変更しないオーバーレイとして表示する。
 - SCR-MAIN-079: WYSIWYG編集中は編集面の上部に書式バーを常設する。
+- SCR-MAIN-088: 編集エンジン切替はトグル状の3択UIとし、表示順を `Neovim`、`テキスト`、`リッチ` とする。
+- SCR-MAIN-089: Neovimを検出できない場合は編集エンジン切替からNeovimを表示しない。
+- SCR-MAIN-090: 内蔵MarkdownエディターのUI表示名は `テキスト` とする。
+- SCR-MAIN-091: WYSIWYG編集エンジンのUI表示名は `リッチ` とする。
+- SCR-MAIN-092: Markdown早見表の表示ボタンは設定で表示または非表示を切り替えられる。
+- SCR-MAIN-093: `Ctrl+/` はMarkdown早見表を開くだけでなく、表示中なら閉じる。
 - SCR-MAIN-074: WYSIWYG能力を持つ文書では編集エンジン切替にWYSIWYGを表示する。
 - SCR-MAIN-075: WYSIWYG能力を持たない文書ではWYSIWYGの切替操作を表示しない。
 
