@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/hatolife/HatoNote/internal/bundle"
+	"github.com/hatolife/HatoNote/internal/settings"
 )
 
 func TestBuildSingleHTMLDocument(t *testing.T) {
@@ -68,5 +70,46 @@ func TestBuildSingleHTMLSlides(t *testing.T) {
 	}
 	if !strings.Contains(html, "data:image/svg+xml;base64,") {
 		t.Fatal("slide image was not embedded")
+	}
+}
+
+func TestEnhanceExportDiagrams(t *testing.T) {
+	script := writeTestExecutable(t, "mmdc", "out=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n if [ \"$1\" = \"-o\" ]; then shift; out=\"$1\"; fi\n shift || true\ndone\nprintf '<svg xmlns=\"http://www.w3.org/2000/svg\"><text>export-mermaid</text></svg>' > \"$out\"")
+	doc := bundle.New()
+	doc.Entry = "index.md"
+	doc.Files["index.md"] = []byte("# Diagram\n\n```mermaid\ngraph TD; A-->B\n```\n")
+	data, err := buildSingleHTML(doc, "Diagram")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := settings.Default()
+	cfg.MermaidPath = script
+	data, err = enhanceExportDiagrams(data, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(data)
+	if !strings.Contains(html, `class="diagram-render"`) || !strings.Contains(html, "data:image/svg+xml;base64,") {
+		t.Fatalf("diagram not embedded: %s", html)
+	}
+}
+
+func TestEnhanceExportDiagramsFallsBackToCode(t *testing.T) {
+	doc := bundle.New()
+	doc.Entry = "index.md"
+	doc.Files["index.md"] = []byte("```mermaid\ngraph TD; A-->B\n```\n")
+	data, err := buildSingleHTML(doc, "Diagram")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := settings.Default()
+	cfg.MermaidPath = filepath.Join(t.TempDir(), "missing-mmdc")
+	data, err = enhanceExportDiagrams(data, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(data)
+	if !strings.Contains(html, `data-diagram-error="true"`) || !strings.Contains(html, "language-mermaid") {
+		t.Fatalf("diagram fallback missing: %s", html)
 	}
 }
