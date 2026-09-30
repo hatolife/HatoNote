@@ -699,3 +699,20 @@ footer #status { flex: 1; }
 @media(max-width:620px) {
 	.export-options { grid-template-columns: 1fr; }
 }
+
+
+/* Markdown quality tools */
+#lint-dialog{
+	width:min(680px,calc(100vw - 48px));
+	max-height:min(720px,calc(100vh - 72px));
+	overflow:hidden;
+}
+.lint-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.lint-heading h2{margin:0}
+#lint-summary{color:var(--muted);font-size:12px}
+#lint-results{display:grid;gap:7px;max-height:52vh;overflow:auto;margin-top:16px}
+.lint-result{display:grid;grid-template-columns:minmax(120px,.35fr) minmax(0,1fr);gap:14px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--bg)}
+.lint-result strong{font:11px/1.4 Consolas,monospace}
+.lint-result span{font-size:12px;color:var(--muted)}
+.lint-empty{padding:20px;text-align:center;color:var(--muted)}
+#settings-form h3{font-size:12px;margin:10px 0 4px;color:var(--muted)}
