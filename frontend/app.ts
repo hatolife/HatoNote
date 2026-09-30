@@ -10,7 +10,7 @@ interface Snapshot { filename: string; entry: string; pages: string[]; assets: s
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
 interface BookContents { revision: string; entries: TocEntry[]; unlisted: string[]; canUndo: boolean; canRedo: boolean }
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
-interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; showMarkdownCheatsheet: boolean; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number; formatTrimTrailingWhitespace: boolean; formatMaxBlankLines: number; formatFinalNewline: boolean; lintTrailingWhitespace: boolean; lintLongLines: boolean; lintMaxLineLength: number; lintHeadingStep: boolean; lintFinalNewline: boolean; mermaidPath: string; javaPath: string; plantumlJar: string }
+interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; showMarkdownCheatsheet: boolean; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number; formatTrimTrailingWhitespace: boolean; formatMaxBlankLines: number; formatFinalNewline: boolean; lintTrailingWhitespace: boolean; lintLongLines: boolean; lintMaxLineLength: number; lintHeadingStep: boolean; lintFinalNewline: boolean; mermaidPath: string; javaPath: string; plantumlJar: string; katexPath: string }
 interface Recovery { id: string; filename: string; updated: string }
 interface HistoryEntry { id: string; name: string; kind: 'backup' | 'named'; created: string; size: number }
 interface HistoryPageDiff { page: string; status: 'added' | 'deleted' | 'modified'; history: string; current: string }
@@ -28,7 +28,7 @@ interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
 interface Backend {
-	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>; CheckDiagramDependencies(mermaidPath:string,javaPath:string,plantUMLJar:string):Promise<Dependency[]>;
+	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>; CheckDiagramDependencies(mermaidPath:string,javaPath:string,plantUMLJar:string,katexPath:string):Promise<Dependency[]>;
 	StartPresentation(slides:Array<Slide & {html:string}>,index:number):Promise<PresentationState>; PresentationState():Promise<PresentationState>; PresentationCommand(command:string,index:number):Promise<void>;StopPresentation():Promise<void>;
 	Slides(): Promise<SlidesInfo>; PrepareSlides(): Promise<SlidesInfo>; ChangeSlide(revision: string, id: string, operation: string, value: string): Promise<SlidesInfo>; ConfigureSlides(revision: string, deck: SlideDeck): Promise<SlidesInfo>; RenderSlide(text: string, layout: string): Promise<string>;
 	ConvertDocumentType(target: string): Promise<void>;
@@ -38,10 +38,10 @@ interface Backend {
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
-	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
+	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; RenderMath(source:string, display:boolean): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	References(): Promise<ReferenceSet>; SaveReference(reference: ReferenceItem): Promise<ReferenceItem>; DeleteReference(id: string): Promise<void>; ApplyReferences(page: string): Promise<string>;
-	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; ChooseMermaid(): Promise<string>; ChooseJava(): Promise<string>; ChoosePlantUMLJar(): Promise<string>; OpenDataFolder(): Promise<void>;
+	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; ChooseMermaid(): Promise<string>; ChooseJava(): Promise<string>; ChoosePlantUMLJar(): Promise<string>; ChooseKatex(): Promise<string>; OpenDataFolder(): Promise<void>;
 	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; HistoryDiff(id: string): Promise<HistoryPageDiff[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
 	StartNative(): Promise<boolean>; NativeOpen(name: string): Promise<void>;
 	NativePoll(): Promise<{name: string; text: string; changed: boolean; canUndo: boolean; canRedo: boolean}>;
@@ -900,6 +900,52 @@ async function enhanceDiagramBlocks(doc: Document): Promise<void> {
 	}
 }
 
+function mathElementFromMarkup(doc: Document, markup: string, display: boolean): HTMLElement {
+	const parsed = new DOMParser().parseFromString(markup, 'application/xml');
+	if (parsed.querySelector('parsererror')) throw new Error('MathMLを解析できません');
+	const math = parsed.documentElement;
+	if (math.localName !== 'math') throw new Error('MathMLのmath要素がありません');
+	const wrapper = doc.createElement(display ? 'div' : 'span');
+	wrapper.className = display ? 'math-render math-display' : 'math-render math-inline';
+	wrapper.append(doc.importNode(math, true));
+	return wrapper;
+}
+
+async function enhanceMathBlocks(doc: Document): Promise<void> {
+	for (const pre of [...doc.querySelectorAll<HTMLPreElement>('pre')]) {
+		const code = pre.firstElementChild;
+		if (!(code instanceof HTMLElement) || code.tagName !== 'CODE') continue;
+		const math = code.classList.contains('language-math') || code.classList.contains('language-tex') || code.classList.contains('language-latex');
+		if (!math) continue;
+		try {
+			pre.replaceWith(mathElementFromMarkup(doc, await api.RenderMath(code.textContent || '', true), true));
+		} catch (error) {
+			pre.classList.add('math-fallback');
+			pre.title = String(error);
+			const details = doc.createElement('details');
+			details.className = 'math-error';
+			const summary = doc.createElement('summary');
+			summary.textContent = '数式を表示できません';
+			const message = doc.createElement('span');
+			message.textContent = String(error);
+			details.append(summary, message);
+			pre.before(details);
+		}
+	}
+	for (const paragraph of [...doc.querySelectorAll<HTMLParagraphElement>('p')]) {
+		if (paragraph.childElementCount !== 0) continue;
+		const raw = paragraph.textContent?.trim() || '';
+		if (raw.length <= 4 || !raw.startsWith('$') || !raw.endsWith('$')) continue;
+		const source = raw.slice(2, -2).trim();
+		try {
+			paragraph.replaceWith(mathElementFromMarkup(doc, await api.RenderMath(source, true), true));
+		} catch (error) {
+			paragraph.classList.add('math-fallback');
+			paragraph.title = String(error);
+		}
+	}
+}
+
 async function render(): Promise<void> {
 	if (!state?.id) return;
 	if (documentIs('slides')) { await renderSlidePreview(); return; }
@@ -911,6 +957,7 @@ async function render(): Promise<void> {
 	if (ticket !== renderID || sourcePage !== current) return;
 	const doc = new DOMParser().parseFromString(html, 'text/html');
 	await enhanceDiagramBlocks(doc);
+	await enhanceMathBlocks(doc);
 	if (!bookInfo?.present) {
 		markdownHeadingPage = sourcePage;
 		markdownHeadings = [...doc.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6')]
@@ -1395,6 +1442,10 @@ element('choose-java').onclick = () => void action(async () => {
 element('choose-plantuml').onclick = () => void action(async () => {
 	const name = await api.ChoosePlantUMLJar();
 	if (name) { element<HTMLInputElement>('plantuml-jar').value = name; void checkDiagramDependencies(); }
+});
+element('choose-katex').onclick = () => void action(async () => {
+	const name = await api.ChooseKatex();
+	if (name) { element<HTMLInputElement>('katex-path').value = name; void checkDiagramDependencies(); }
 });
 element<HTMLInputElement>('init-path').addEventListener('input', event => {
 	if ((event.currentTarget as HTMLInputElement).value.trim()) {
@@ -2260,6 +2311,7 @@ async function slideHTML(slide: Slide, text?: string): Promise<string> {
 	const html = await api.RenderSlide(text ?? await api.Text(slide.file), slide.layout);
 	const doc = new DOMParser().parseFromString(html, 'text/html');
 	await enhanceDiagramBlocks(doc);
+	await enhanceMathBlocks(doc);
 	for (const image of doc.querySelectorAll('img')) {
 		const target = resolveLink(image.getAttribute('src') || '', slide.file);
 		if (target) image.src = `${location.origin}/bundle/${target.path.split('/').map(encodeURIComponent).join('/')}`;
@@ -2595,24 +2647,25 @@ for(const id of ['nvim-path','init-path','mdbook-path'])element(id).addEventList
 let diagramDependencyCheck=0, diagramDependencyTimer=0;
 async function checkDiagramDependencies():Promise<void>{
 	const request=++diagramDependencyCheck;
-	for(const id of ['mermaid-status','java-status','plantuml-status']) element(id).textContent='確認中…';
+	for(const id of ['mermaid-status','java-status','plantuml-status','katex-status']) element(id).textContent='確認中…';
 	try{
 		const results=await api.CheckDiagramDependencies(
 			element<HTMLInputElement>('mermaid-path').value,
 			element<HTMLInputElement>('java-path').value,
-			element<HTMLInputElement>('plantuml-jar').value
+			element<HTMLInputElement>('plantuml-jar').value,
+			element<HTMLInputElement>('katex-path').value
 		);
 		if(request!==diagramDependencyCheck)return;
 		for(const result of results){
-			const output=element(result.name==='Mermaid'?'mermaid-status':result.name==='Java'?'java-status':'plantuml-status');
+			const output=element(result.name==='Mermaid'?'mermaid-status':result.name==='Java'?'java-status':result.name==='KaTeX'?'katex-status':'plantuml-status');
 			output.textContent=result.message;output.dataset.found=String(result.found);
 		}
 	}catch(error){
-		if(request===diagramDependencyCheck)for(const id of ['mermaid-status','java-status','plantuml-status'])element(id).textContent=String(error);
+		if(request===diagramDependencyCheck)for(const id of ['mermaid-status','java-status','plantuml-status','katex-status'])element(id).textContent=String(error);
 	}
 }
 element('check-diagram-dependencies').onclick=()=>void checkDiagramDependencies();
-for(const id of ['mermaid-path','java-path','plantuml-jar']) element(id).addEventListener('input',()=>{
+for(const id of ['mermaid-path','java-path','plantuml-jar','katex-path']) element(id).addEventListener('input',()=>{
 	window.clearTimeout(diagramDependencyTimer);
 	diagramDependencyTimer=window.setTimeout(()=>void checkDiagramDependencies(),300);
 });
