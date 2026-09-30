@@ -2,6 +2,7 @@ import { History, TextState } from './history.js';
 import { NativeView } from './nvim.js';
 import { WysiwygEditor, equivalentRenderedHTML, markdownFromRenderedHTML, renderedHTMLHasOmittedRawHTML } from './wysiwyg.js';
 import { CommandRegistry } from './commands.js';
+import { diffLines } from './diff.js';
 type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
 type PaneLayout = 'editor' | 'split' | 'preview';
 type EditorEngine = 'builtin' | 'wysiwyg' | 'neovim';
@@ -1569,18 +1570,33 @@ async function showHistoryDiff(entry: HistoryEntry): Promise<void> {
 		details.open = index === 0;
 		const summary = document.createElement('summary');
 		summary.textContent = `[${statusLabel[page.status]}] ${page.page}`;
-		const columns = document.createElement('div');
-		columns.className = 'history-diff-columns';
-		for (const [label, text] of [['履歴', page.history], ['現在', page.current]] as const) {
-			const section = document.createElement('section');
-			const title = document.createElement('h4');
-			title.textContent = label;
-			const pre = document.createElement('pre');
-			pre.textContent = text || '（なし）';
-			section.append(title, pre);
-			columns.append(section);
+		const table = document.createElement('div');
+		table.className = 'history-line-diff';
+		const header = document.createElement('div');
+		header.className = 'history-line-diff-header';
+		for (const label of ['履歴', '現在']) {
+			const cell = document.createElement('span');
+			cell.textContent = label;
+			header.append(cell);
 		}
-		details.append(summary, columns);
+		table.append(header);
+		for (const row of diffLines(page.history, page.current)) {
+			const line = document.createElement('div');
+			line.className = `history-line-diff-row ${row.kind}`;
+			for (const [lineNumber, text] of [[row.historyLine, row.history], [row.currentLine, row.current]] as const) {
+				const cell = document.createElement('div');
+				cell.className = 'history-line-diff-cell';
+				const number = document.createElement('span');
+				number.className = 'history-line-number';
+				number.textContent = lineNumber ? String(lineNumber) : '';
+				const code = document.createElement('code');
+				code.textContent = text;
+				cell.append(number, code);
+				line.append(cell);
+			}
+			table.append(line);
+		}
+		details.append(summary, table);
 		historyDiff.append(details);
 	}
 }
