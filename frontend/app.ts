@@ -10,7 +10,7 @@ interface Snapshot { filename: string; entry: string; pages: string[]; assets: s
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
 interface BookContents { revision: string; entries: TocEntry[]; unlisted: string[]; canUndo: boolean; canRedo: boolean }
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
-interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number; formatTrimTrailingWhitespace: boolean; formatMaxBlankLines: number; formatFinalNewline: boolean; lintTrailingWhitespace: boolean; lintLongLines: boolean; lintMaxLineLength: number; lintHeadingStep: boolean; lintFinalNewline: boolean }
+interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; showMarkdownCheatsheet: boolean; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number; formatTrimTrailingWhitespace: boolean; formatMaxBlankLines: number; formatFinalNewline: boolean; lintTrailingWhitespace: boolean; lintLongLines: boolean; lintMaxLineLength: number; lintHeadingStep: boolean; lintFinalNewline: boolean }
 interface Recovery { id: string; filename: string; updated: string }
 interface HistoryEntry { id: string; name: string; kind: 'backup' | 'named'; created: string; size: number }
 interface HistoryPageDiff { page: string; status: 'added' | 'deleted' | 'modified'; history: string; current: string }
@@ -101,6 +101,7 @@ let current = '', changed = false, busy = false, renderID = 0, timer = 0, checkp
 let state: Snapshot;
 const documentIs = (type: DocumentType): boolean => state?.documentType === type;
 let cfg: Settings;
+let nvimAvailable = false;
 let markPending: Promise<void> = Promise.resolve();
 let nativePending: Promise<void> = Promise.resolve();
 let nativeSaveRequested = false;
@@ -206,12 +207,32 @@ function rememberRecentDocument(filename: string): void {
 	renderRecentDocuments();
 }
 function history(): History { let h = histories.get(current); if (!h) { h = new History(cfg.undoLevels); histories.set(current, h); } return h; }
+function updateEditorEngineToggle(): void {
+	const nvim = editorEngine.querySelector<HTMLButtonElement>('[data-engine="neovim"]');
+	if (nvim) nvim.hidden = !(nvimAvailable || state?.engine === 'neovim');
+	const visible = [...editorEngine.querySelectorAll<HTMLButtonElement>('[data-engine]')].filter(button => !button.hidden);
+	editorEngine.dataset.count = String(visible.length);
+	const index = Math.max(0, visible.findIndex(button => button.dataset.engine === activeEngine));
+	editorEngine.dataset.index = String(index);
+	editorEngine.dataset.engine = activeEngine;
+}
 function setEditorEngine(engine: string): void {
 	for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-engine]')) {
 		const selected = button.dataset.engine === engine;
 		button.classList.toggle('selected', selected);
 		button.setAttribute('aria-pressed', String(selected));
 	}
+	updateEditorEngineToggle();
+}
+async function refreshEditorAvailability(): Promise<void> {
+	if (!cfg) return;
+	try {
+		const dependencies = await api.CheckDependencies(cfg.nvimPath, cfg.initPath, cfg.mdbookPath);
+		nvimAvailable = !!dependencies.find(item => item.name === 'Neovim')?.found;
+	} catch {
+		nvimAvailable = false;
+	}
+	updateEditorEngineToggle();
 }
 function updateUndoRedo(): void {
 	const undo = element<HTMLButtonElement>('undo');
@@ -493,6 +514,7 @@ async function selectPage(name: string): Promise<void> {
 function supportsWysiwyg(): boolean { return !!state?.capabilities.wysiwygEditor; }
 function initialEditorEngine(): EditorEngine {
 	if (!cfg) return 'builtin';
+	if (cfg.editor === 'neovim' && !nvimAvailable) return 'builtin';
 	if (cfg.editor === 'wysiwyg' && !supportsWysiwyg()) return 'builtin';
 	return cfg.editor;
 }
@@ -592,7 +614,7 @@ function updateEditing(): void {
 	const wysiwygButton = editorEngine.querySelector<HTMLButtonElement>('[data-engine="wysiwyg"]');
 	if (wysiwygButton) wysiwygButton.hidden = !supportsWysiwyg();
 	element('slide-typography').hidden = !editing || !documentIs('slides');
-	element('markdown-cheatsheet').hidden = !editing;
+	element('markdown-cheatsheet').hidden = !editing || !cfg.showMarkdownCheatsheet;
 	element('format-markdown').hidden = !editing;
 	element('lint-markdown').hidden = !editing;
 	updateSlideDebugToggle();
@@ -1127,7 +1149,7 @@ window.addEventListener('keydown', event => {
 	if (!(event.ctrlKey || event.metaKey)) return;
 	const key = event.key.toLowerCase();
 	if (key === 'p' && event.shiftKey && !activeAppDialog?.open) { event.preventDefault(); showCommandPalette(); return; }
-	if (event.key === '/' && editing && !activeAppDialog?.open) { event.preventDefault(); runCommand('help.markdownCheatsheet'); return; }
+	if (event.key === '/' && editing && (!activeAppDialog?.open || activeAppDialog === cheatsheetDialog)) { event.preventDefault(); runCommand('help.markdownCheatsheet'); return; }
 	if (key === 'f' && state?.id && !activeAppDialog?.open) { event.preventDefault(); runCommand('document.search'); return; }
 	if (key === 's') { event.preventDefault(); runCommand(event.shiftKey ? 'document.saveAs' : 'document.save'); return; }
 	if (key === 'o' && event.target !== nativeInput) { event.preventDefault(); runCommand('document.open'); return; }
@@ -1287,14 +1309,20 @@ element('reference-close').onclick = () => referenceDialog.close();
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
 const cheatsheetDialog = element<HTMLDialogElement>('markdown-cheatsheet-dialog');
 function showMarkdownCheatsheet(): void {
-	if (editing) showAppDialog(cheatsheetDialog);
+	if (!editing) return;
+	if (cheatsheetDialog.open) {
+		cheatsheetDialog.close();
+		return;
+	}
+	showAppDialog(cheatsheetDialog);
 }
 function showSettings(): void {
 	element('settings-error').textContent = '';
 	element('settings-version').textContent = appVersion || '取得中';
 	detectedInitPath = '';
 	for (const [key, value] of Object.entries(cfg)) {
-		const control = settingsDialog.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${key}"]`)!;
+		const control = settingsDialog.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${key}"]`);
+		if (!control) continue;
 		if (typeof value === 'boolean') (control as HTMLInputElement).checked = value; else control.value = String(value);
 	}
 	showAppDialog(settingsDialog);void checkDependencies();
@@ -1329,14 +1357,15 @@ element('settings-save').onclick = () => {
 	if (!element<HTMLFormElement>('settings-form').reportValidity()) return;
 	const next = { ...cfg };
 	for (const [key, value] of Object.entries(cfg)) {
-		const control = settingsDialog.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${key}"]`)!;
+		const control = settingsDialog.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${key}"]`);
+		if (!control) continue;
 		(next as unknown as Record<string, unknown>)[key] = typeof value === 'boolean' ? (control as HTMLInputElement).checked : typeof value === 'number' ? Number(control.value) : control.value;
 	}
 	void action(async () => {
 		await flush();
 		const keepEngine = activeEngine;
 		try { await api.Configure(next); } catch (error) { element('settings-error').textContent = String(error); throw error; }
-		cfg = next; autoDeadline = 0; applyTheme();
+		cfg = next; autoDeadline = 0; applyTheme(); await refreshEditorAvailability();
 		for (const h of histories.values()) h.setLimit(cfg.undoLevels);
 		if(editing && keepEngine === 'neovim') await api.StartNative();
 		await refreshSidebar();
@@ -1868,7 +1897,7 @@ window.runtime.EventsOn('native-changed', () => { if (state) { state.dirty = tru
 window.runtime.EventsOn('app-error', error => status(String(error), true));
 
 void action(async () => {
-	cfg = await api.Settings(); applyTheme(); renderRecentDocuments(); await reload();
+	cfg = await api.Settings(); applyTheme(); await refreshEditorAvailability(); renderRecentDocuments(); await reload();
 	const name = await api.Initial(); if (name && await api.Open(name)) await reload();
 	if (!name) await showRecoveries();
 });
