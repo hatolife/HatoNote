@@ -12,6 +12,7 @@ import (
 	"github.com/hatolife/HatoNote/internal/bundle"
 	"github.com/hatolife/HatoNote/internal/document"
 	"github.com/hatolife/HatoNote/internal/settings"
+	"github.com/hatolife/HatoNote/internal/workspace"
 )
 
 func TestSingleMarkdownOpenOverwriteAndConvert(t *testing.T) {
@@ -212,5 +213,39 @@ func TestSingleMarkdownRelativeImages(t *testing.T) {
 		if response.Code != http.StatusNotFound {
 			t.Fatalf("%s: unexpected status=%d", reference, response.Code)
 		}
+	}
+}
+
+
+func TestNewMarkdownConvertDropsUnsavedMarker(t *testing.T) {
+	doc, err := newBlankDocument("markdown")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &App{base: t.TempDir(), cfg: settings.Default()}
+	a.session, err = workspace.New(a.base, doc, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.shutdown()
+	if a.State().DocumentType != document.Markdown {
+		t.Fatalf("new document type = %q", a.State().DocumentType)
+	}
+	destination := filepath.Join(t.TempDir(), "new.mdz")
+	a.mu.Lock()
+	err = a.saveLocked(destination)
+	a.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := bundle.Read(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := saved.Manifest[document.UnsavedDocumentTypeKey]; ok {
+		t.Fatal("unsaved Markdown marker leaked into MDZ")
+	}
+	if a.State().DocumentType != document.MDZ {
+		t.Fatalf("saved document type = %q", a.State().DocumentType)
 	}
 }
