@@ -20,6 +20,8 @@ interface SlidesInfo { deck: SlideDeck; revision: string; canUndo: boolean; canR
 interface Dependency {name:string;found:boolean;path:string;message:string}
 interface MarkdownHeading { id: string; text: string; level: number }
 interface SearchResult { page: string; line: number; start: number; end: number; text: string }
+interface ReferenceItem { id: string; title: string; url: string; note: string }
+interface ReferenceSet { version: number; items: ReferenceItem[] }
 interface PageTemplate { id: string; title: string }
 interface DocumentTemplate { id: string; title: string }
 interface MarkdownDiagnostic { line: number; rule: string; message: string }
@@ -38,6 +40,7 @@ interface Backend {
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
+	References(): Promise<ReferenceSet>; SaveReference(reference: ReferenceItem): Promise<ReferenceItem>; DeleteReference(id: string): Promise<void>; ApplyReferences(page: string): Promise<string>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; OpenDataFolder(): Promise<void>;
 	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; HistoryDiff(id: string): Promise<HistoryPageDiff[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
 	StartNative(): Promise<boolean>; NativeOpen(name: string): Promise<void>;
@@ -294,7 +297,7 @@ function refreshTitle(): void {
 	element('titlebar-path').title = state?.filename || '';
 	element('count').textContent = `${Array.from(editor.value).length.toLocaleString()} 文字`;
 	const engine = activeEngine;
-	element('engine').textContent = engine === 'neovim' ? 'Neovim' : engine === 'wysiwyg' ? 'WYSIWYG' : 'Markdown';
+	element('engine').textContent = engine === 'neovim' ? 'Neovim' : engine === 'wysiwyg' ? 'リッチ編集' : 'Markdown';
 	setEditorEngine(engine);
 	updateUndoRedo();
 }
@@ -478,7 +481,7 @@ async function selectPage(name: string): Promise<void> {
 	current = name; editor.value = text; changed = false; beforeInput = undefined;
 	if (editing && activeEngine === 'wysiwyg' && !(await loadWysiwyg())) {
 		activeEngine = 'builtin'; applyEditor();
-		status('このMarkdownはWYSIWYGで安全に往復できない構文を含むため、Markdownエディターで開きました', true);
+		status('このMarkdownはリッチ編集で安全に往復できない構文を含むため、Markdownエディターで開きました', true);
 	}
 	markdownHeadingPage = '';
 	markdownHeadings = [];
@@ -528,11 +531,13 @@ function applyEditor(): void {
 	applyWysiwygSlideStyle();
 	native.setActive(isNative && editing); native.configure(cfg.fontFamily, cfg.fontSize);
 	editor.style.fontFamily = cfg.fontFamily; editor.style.fontSize = `${cfg.fontSize}px`;
-	element('editor-caption').textContent = isNative ? 'NEOVIM' : isWysiwyg ? 'WYSIWYG' : 'MARKDOWN';
+	element('editor-caption').textContent = isNative ? 'NEOVIM' : isWysiwyg ? 'リッチ編集' : 'MARKDOWN';
 	element('native-warning').hidden = !state.nativeError;
 	element('native-warning').textContent = state.nativeError;
 	const wysiwygButton = editorEngine.querySelector<HTMLButtonElement>('[data-engine="wysiwyg"]');
 	if (wysiwygButton) wysiwygButton.hidden = !supportsWysiwyg();
+	for (const control of wysiwygToolbar.querySelectorAll<HTMLElement>('[data-wysiwyg-feature="fold"]')) control.hidden = !documentIs('mdz');
+	for (const control of wysiwygToolbar.querySelectorAll<HTMLElement>('[data-wysiwyg-feature="citation"]')) control.hidden = !documentIs('mdz');
 	setEditorEngine(activeEngine);
 	updateUndoRedo();
 }
@@ -628,11 +633,11 @@ for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-eng
 		activeEngine = requested;
 		if (requested === 'wysiwyg' && !(await loadWysiwyg())) {
 			activeEngine = 'builtin'; applyEditor(); await render(); editor.focus({preventScroll:true});
-			status('このMarkdownはWYSIWYGで安全に往復できない構文を含むため切り替えませんでした', true);
+			status('このMarkdownはリッチ編集で安全に往復できない構文を含むため切り替えませんでした', true);
 			return;
 		}
 		applyEditor(); await render(); requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
-		if (requested === 'wysiwyg') { wysiwyg.focus(); status('WYSIWYGエディターに切り替えました'); }
+		if (requested === 'wysiwyg') { wysiwyg.focus(); status('リッチ編集に切り替えました'); }
 		else { editor.focus({preventScroll:true}); status('Markdownエディターに切り替えました'); }
 	});
 };
@@ -952,7 +957,7 @@ function undo(redo: boolean): void {
 	editor.value = entry.text;
 	if (activeEngine === 'wysiwyg') {
 		void loadWysiwyg().then(ok => {
-			if (!ok) { activeEngine = 'builtin'; applyEditor(); status('Undo後の内容をWYSIWYGで安全に表示できないため、Markdownエディターへ切り替えました', true); }
+			if (!ok) { activeEngine = 'builtin'; applyEditor(); status('Undo後の内容をリッチ編集で安全に表示できないため、Markdownエディターへ切り替えました', true); }
 			else wysiwyg.focus();
 		}).catch(error => status(String(error), true));
 	} else {
@@ -1191,6 +1196,83 @@ function showSearch(): void {
 }
 element('search').onclick = () => runCommand('document.search');
 searchInput.addEventListener('input', () => { void searchDocument(searchInput.value).catch(error => status(String(error), true)); });
+
+const referenceDialog = element<HTMLDialogElement>('reference-dialog');
+let referenceItems: ReferenceItem[] = [];
+function selectedReference(): ReferenceItem | undefined {
+	const id = element<HTMLSelectElement>('reference-select').value;
+	return referenceItems.find(item => item.id === id);
+}
+function fillReference(reference?: ReferenceItem): void {
+	element<HTMLInputElement>('reference-title').value = reference?.title || '';
+	element<HTMLInputElement>('reference-url').value = reference?.url || '';
+	element<HTMLTextAreaElement>('reference-note').value = reference?.note || '';
+	element('reference-error').textContent = '';
+}
+function renderReferenceSelect(selected = ''): void {
+	const select = element<HTMLSelectElement>('reference-select');
+	select.replaceChildren();
+	const fresh = document.createElement('option'); fresh.value=''; fresh.textContent='新規'; select.append(fresh);
+	for (const item of referenceItems) {
+		const option=document.createElement('option');option.value=item.id;option.textContent=item.title;select.append(option);
+	}
+	select.value = referenceItems.some(item=>item.id===selected) ? selected : '';
+	fillReference(selectedReference());
+}
+async function refreshReferences(selected = ''): Promise<void> {
+	const set = await api.References();
+	referenceItems = set.items || [];
+	renderReferenceSelect(selected);
+}
+element('wysiwyg-citation').onclick = () => void action(async () => {
+	if (!documentIs('mdz') || activeEngine !== 'wysiwyg') return;
+	await refreshReferences();
+	showAppDialog(referenceDialog);
+});
+element('reference-select').onchange = () => fillReference(selectedReference());
+element('reference-new').onclick = () => { element<HTMLSelectElement>('reference-select').value=''; fillReference(); element<HTMLInputElement>('reference-title').focus(); };
+async function saveReferenceFromDialog(): Promise<ReferenceItem> {
+	const current = selectedReference();
+	const saved = await api.SaveReference({
+		id: current?.id || '',
+		title: element<HTMLInputElement>('reference-title').value,
+		url: element<HTMLInputElement>('reference-url').value,
+		note: element<HTMLTextAreaElement>('reference-note').value,
+	});
+	await refreshReferences(saved.id);
+	await refreshSidebar();
+	return saved;
+}
+element('reference-save').onclick = () => void action(async () => {
+	try { await saveReferenceFromDialog(); status('引用元を保存しました'); }
+	catch(error){element('reference-error').textContent=String(error);throw error;}
+});
+element('reference-delete').onclick = () => void action(async () => {
+	const item=selectedReference();if(!item)return;
+	try {await api.DeleteReference(item.id);await refreshReferences();await refreshSidebar();status('引用元を削除しました');}
+	catch(error){element('reference-error').textContent=String(error);throw error;}
+});
+element('reference-insert').onclick = () => void action(async () => {
+	try {
+		const saved=await saveReferenceFromDialog();
+		wysiwyg.insertCitation(saved.id);
+		referenceDialog.close();
+		status('引用を挿入しました。必要に応じて参考文献を更新してください');
+	} catch(error){element('reference-error').textContent=String(error);throw error;}
+});
+element('reference-apply').onclick = () => void action(async () => {
+	try {
+		await flush();
+		const before=editor.value;
+		const updated=await api.ApplyReferences(current);
+		if(before!==updated)history().record({text:before,start:0,end:0},{text:updated,start:0,end:0},'references');
+		editor.value=updated;changed=false;state=await api.State();
+		if(activeEngine==='wysiwyg' && !(await loadWysiwyg())){activeEngine='builtin';applyEditor();}
+		await render();refreshTitle();updateUndoRedo();
+		status('参考文献を更新しました');
+	} catch(error){element('reference-error').textContent=String(error);throw error;}
+});
+element('reference-close').onclick = () => referenceDialog.close();
 
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
 const cheatsheetDialog = element<HTMLDialogElement>('markdown-cheatsheet-dialog');
@@ -2280,7 +2362,7 @@ element('slides-settings-form').onsubmit=event=>{
 		if (activeEngine === 'wysiwyg' && !(await loadWysiwyg())) {
 			activeEngine = 'builtin';
 			applyEditor();
-			status('変更後のスライドをWYSIWYGで安全に編集できないためMarkdownエディターへ切り替えました', true);
+			status('変更後のスライドをリッチ編集で安全に編集できないためMarkdownエディターへ切り替えました', true);
 		}
 		element<HTMLDialogElement>('slides-settings-dialog').close();await refreshSidebar();await render();status('スライドの設定を更新しました');
 	});
