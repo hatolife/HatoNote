@@ -753,3 +753,12 @@ footer #status { flex: 1; }
 #wysiwyg-content table td:focus,#wysiwyg-content table th:focus{outline:2px solid var(--accent);outline-offset:-2px}
 #wysiwyg-content .hatonote-references{margin-top:2.5em;padding-top:1em;border-top:1px solid var(--line)}
 #wysiwyg-content sup[data-hatonote-citation]{font-size:.75em}
+
+
+.document-template-section{grid-column:1/-1;padding:10px 0 2px}
+.document-template-section h3{margin:0 0 8px;font-size:12px;color:var(--muted)}
+#document-template-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#document-template-options .document-template-option{display:grid;gap:4px;min-height:72px;padding:11px 12px;text-align:left;white-space:normal;border:1px solid var(--line);background:var(--bg)}
+.document-template-option strong{font-size:13px}
+.document-template-option span{color:var(--muted);font-size:10px}
+@media(max-width:620px){#document-template-options{grid-template-columns:1fr}}
