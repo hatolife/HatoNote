@@ -21,6 +21,7 @@ interface Dependency {name:string;found:boolean;path:string;message:string}
 interface MarkdownHeading { id: string; text: string; level: number }
 interface SearchResult { page: string; line: number; start: number; end: number; text: string }
 interface PageTemplate { id: string; title: string }
+interface DocumentTemplate { id: string; title: string }
 interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
@@ -31,7 +32,7 @@ interface Backend {
 	ConvertDocumentType(target: string): Promise<void>;
 	Contents(): Promise<BookContents>; ChangeContents(revision: string, index: number, operation: string, value: string): Promise<BookContents>;
 	RenameBook(revision: string, title: string): Promise<void>; GetBookConfiguration(): Promise<{text: string; revision: string}>; SaveBookConfiguration(revision: string, text: string): Promise<void>;
-	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
+	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; DocumentTemplates(): Promise<DocumentTemplate[]>; NewDocumentFromTemplate(templateID: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
@@ -962,6 +963,33 @@ function undo(redo: boolean): void {
 }
 element('undo').onclick = () => undo(false); element('redo').onclick = () => undo(true);
 const newDialog = element<HTMLDialogElement>('new-dialog');
+const documentTemplateOptions = element<HTMLElement>('document-template-options');
+let documentTemplatesLoaded = false;
+async function loadDocumentTemplates(): Promise<void> {
+	if (documentTemplatesLoaded) return;
+	const templates = await api.DocumentTemplates();
+	documentTemplateOptions.replaceChildren();
+	for (const template of templates) {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'document-template-option';
+		const title = document.createElement('strong');
+		title.textContent = template.title;
+		const description = document.createElement('span');
+		description.textContent = '通常MDZとして作成';
+		button.append(title, description);
+		button.onclick = () => {
+			newDialog.close();
+			void action(async () => { await flush(); if (await api.NewDocumentFromTemplate(template.id)) await reload(true); });
+		};
+		documentTemplateOptions.append(button);
+	}
+	documentTemplatesLoaded = true;
+}
+function showNewDocumentDialog(): void {
+	showAppDialog(newDialog);
+	void loadDocumentTemplates().catch(error => status(String(error), true));
+}
 element('new').onclick = () => runCommand('document.new');
 element('welcome-new').onclick = () => runCommand('document.new');
 element('welcome-open').onclick = () => runCommand('document.open');
@@ -1462,7 +1490,7 @@ element('macro-record-stop').onclick = () => {
 element('macro').onclick = () => runCommand('macro.manage');
 commands.register({id:'macro.manage', title:'マクロ管理', execute:showMacroManager});
 
-commands.register({id:'document.new', title:'新規文書', execute:()=>showAppDialog(newDialog)});
+commands.register({id:'document.new', title:'新規文書', execute:showNewDocumentDialog});
 commands.register({id:'document.open', title:'文書を開く', shortcut:'Ctrl+O', execute:()=>action(async()=>{await flush(); if(await api.Open('')) await reload();})});
 commands.register({id:'document.save', title:'保存', shortcut:'Ctrl+S', enabled:()=>!!state?.id, execute:()=>save(false)});
 commands.register({id:'document.saveAs', title:'名前を付けて保存', shortcut:'Ctrl+Shift+S', enabled:()=>!!state?.id, execute:()=>save(true)});
