@@ -219,6 +219,21 @@ func (e *Native) Current() (Current, error) {
 	return c, nil
 }
 
+// ReplaceCurrent は現在バッファの本文を1回のUndo可能な変更として置き換えます。
+func (e *Native) ReplaceCurrent(text string) error {
+	var result any
+	return e.Client.ExecLua(`
+local text=...
+local b=vim.api.nvim_get_current_buf()
+local eol=text:sub(-1)=='\n'
+if eol then text=text:sub(1,-2) end
+local lines=vim.split(text,'\n',{plain=true,trimempty=false})
+if #lines==0 then lines={''} end
+vim.api.nvim_buf_set_lines(b,0,-1,false,lines)
+vim.bo[b].endofline=eol
+`, &result, text)
+}
+
 func (e *Native) Changed() bool { return e.changed.Swap(false) }
 func (e *Native) Input(keys string) error {
 	for len(keys) > 0 {
