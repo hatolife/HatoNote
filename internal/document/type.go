@@ -1,6 +1,10 @@
 package document
 
-import "github.com/hatolife/HatoNote/internal/bundle"
+import (
+	"encoding/json"
+
+	"github.com/hatolife/HatoNote/internal/bundle"
+)
 
 type Type string
 
@@ -10,6 +14,8 @@ const (
 	MdBook   Type = "mdbook"
 	Slides   Type = "slides"
 )
+
+const UnsavedDocumentTypeKey = "x-hatonote-documentType"
 
 type Capabilities struct {
 	MultiplePages  bool `json:"multiplePages"`
@@ -28,6 +34,12 @@ func Detect(filename string, doc *bundle.Document) Type {
 	}
 	if doc == nil {
 		return ""
+	}
+	if filename == "" {
+		var unsavedType Type
+		if json.Unmarshal(doc.Manifest[UnsavedDocumentTypeKey], &unsavedType) == nil && unsavedType == Markdown {
+			return Markdown
+		}
 	}
 	if doc.HasSlides() {
 		return Slides
