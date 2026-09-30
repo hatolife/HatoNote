@@ -842,3 +842,20 @@ body.settings-screen-open #settings-dialog{position:fixed;left:56px;top:34px;rig
 #user-template-error{color:#d56161;white-space:pre-wrap}
 .user-template-empty{padding:14px;text-align:center;color:var(--muted);font-size:11px}
 @media(max-width:760px){.user-template-manager{grid-template-columns:1fr}#user-template-list{max-height:180px}}
+
+
+/* User-defined templates */
+.user-template-settings{grid-column:1/-1}
+.user-template-manager{display:grid;grid-template-columns:minmax(190px,.35fr) minmax(0,1fr);gap:14px;min-height:320px}
+.user-template-list{display:grid;align-content:start;gap:6px;max-height:430px;overflow:auto;padding-right:2px}
+.user-template-list>button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:9px 10px;text-align:left;background:var(--bg);border:1px solid var(--line)}
+.user-template-list>button.selected{background:var(--active);border-color:var(--accent)}
+.user-template-list strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.user-template-list small{color:var(--muted);font-size:10px}
+.user-template-empty{margin:0;padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:7px}
+.user-template-editor{display:grid;gap:10px;align-content:start;min-width:0}
+.user-template-editor textarea{display:block;width:100%;min-height:240px;resize:vertical;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--text);padding:10px 12px;font:12px/1.6 Consolas,"Yu Gothic",monospace}
+.template-inline-fields{display:grid;grid-template-columns:minmax(130px,.3fr) minmax(0,1fr);gap:10px}
+.template-manager-actions{display:flex;justify-content:flex-end;gap:8px}
+#user-template-error{min-height:1.4em;margin:0;color:#d56161;white-space:pre-wrap}
+@media(max-width:760px){.user-template-manager{grid-template-columns:1fr}.user-template-list{max-height:180px}.template-inline-fields{grid-template-columns:1fr}}
