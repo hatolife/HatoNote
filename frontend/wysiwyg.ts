@@ -204,8 +204,12 @@ function canonicalNode(node: Node, preserveWhitespace = false): string {
 	const tag = node.tagName.toLowerCase();
 	const preserve = preserveWhitespace || tag === 'pre' || tag === 'code';
 	const attrs: string[] = [];
-	for (const name of ['href','src','title','start','align','type','checked','class','style','open','id','data-hatonote-citation','data-hatonote-source']) {
+	for (const name of ['href','src','title','start','align','type','checked','class','open','id','data-hatonote-citation','data-hatonote-source']) {
 		if (node.hasAttribute(name)) attrs.push(`${name}=${JSON.stringify(node.getAttribute(name) || '')}`);
+	}
+	if (tag === 'span') {
+		const style = [node.style.color ? `color:${node.style.color}` : '', node.style.fontSize ? `font-size:${node.style.fontSize}` : ''].filter(Boolean).join(';');
+		if (style) attrs.push(`style=${JSON.stringify(style)}`);
 	}
 	const children = Array.from(node.childNodes).map(child => canonicalNode(child, preserve)).filter(Boolean).join(',');
 	return `<${tag}${attrs.length ? ' ' + attrs.join(' ') : ''}>${children}</${tag}>`;
