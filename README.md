@@ -11,7 +11,7 @@ Markdown文書を閲覧、編集、管理するWindowsアプリです。
 
 ## 主な機能
 
-- Markdown内蔵エディター、WYSIWYG内蔵エディター、Neovimを切り替えて編集できる。WYSIWYGは単一Markdown、通常MDZ、スライドで利用できる。
+- Markdown編集、リッチ編集、Neovimを切り替えて編集できる。リッチ編集は単一Markdown、通常MDZ、スライドで利用できる。
 - Markdownプレビューとエディターの表示位置を同期できる。
 - 画像を文書へ貼り付けてMDZ内へ保存できる。
 - 通常MDZとスライドを相互変換できる。
