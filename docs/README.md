@@ -30,3 +30,17 @@
 - SPEC-026: 見出し、仕様ID付き箇条書き、必要なコードブロック、インラインコードを使用してよい。
 - SPEC-028: 仕様条件を表または通常の説明段落として記述しない。
 - SPEC-027: 実装方法より、ユーザーまたは外部から観測できる条件を優先する。
+
+## 機能仕様索引
+
+- SPEC-030: `features/search.md` は文書内検索を定義する。
+- SPEC-031: `features/recent-documents.md` は最近開いた文書を定義する。
+- SPEC-032: `features/commands.md` はCommand体系とCommand Paletteを定義する。
+- SPEC-033: `features/macros.md` はCommandマクロを定義する。
+- SPEC-034: `features/templates.md` はページテンプレートと文書テンプレートを定義する。
+- SPEC-035: `features/history.md` はバックアップ履歴、名前付き世代、差分比較を定義する。
+- SPEC-036: `features/export.md` は単一HTMLとPDFエクスポートを定義する。
+- SPEC-037: `features/markdown-quality.md` はMarkdown FormatterとLintを定義する。
+- SPEC-038: `features/diagrams.md` はMermaid、PlantUML、数式表示を定義する。
+- SPEC-039: `features/references.md` は引用元と参考文献管理を定義する。
+- SPEC-040: `features/diagnostics.md` は診断表示を定義する。
