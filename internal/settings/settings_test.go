@@ -80,4 +80,12 @@ func TestLimitsAndDefaults(t *testing.T) {
 			t.Fatalf("accepted lint line length %d", value)
 		}
 	}
+	if Default().MermaidPath != "" || Default().JavaPath != "" || Default().PlantUMLJar != "" {
+		t.Fatalf("diagram paths must be empty by default: %+v", Default())
+	}
+	badDiagram := Default()
+	badDiagram.PlantUMLJar = "plantuml.zip"
+	if err := badDiagram.Validate(); err == nil {
+		t.Fatal("non-JAR PlantUML path accepted")
+	}
 }
