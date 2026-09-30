@@ -95,6 +95,10 @@ try {
 	for (const theme of ['light', 'dark']) {
 		for (const accent of ['blue', 'green', 'purple']) {
 			await page.locator('#settings').click();
+			const settingsBounds=await page.locator('#settings-dialog').boundingBox();
+			assert(settingsBounds && Math.abs(settingsBounds.x-56)<2 && Math.abs(settingsBounds.y-34)<2,'settings screen must start below titlebar and after rail');
+			assert.equal(await page.locator('#settings-dialog').evaluate(node=>getComputedStyle(node).transform),'none');
+			assert.equal(await page.locator('#settings-form').evaluate(node=>getComputedStyle(node).columnCount),'2');
 			await page.locator('[name=theme]').selectOption(theme);
 			await page.locator('[name=accent]').selectOption(accent);
 			await page.locator('#settings-save').click(); await ready();
