@@ -23,6 +23,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/hatolife/HatoNote/internal/bundle"
+	"github.com/hatolife/HatoNote/internal/document"
 	"github.com/hatolife/HatoNote/internal/process"
 	"github.com/hatolife/HatoNote/internal/workspace"
 )
@@ -66,10 +67,39 @@ type BookInfo struct {
 //go:embed templates/mdbook
 var bookTemplate embed.FS
 
-// newDocument は外部コマンドなしで編集可能なソース一式を作ります。
+// newMarkdownDocument は未保存中も単一Markdownとして判定できる作業文書を作ります。
+func newMarkdownDocument(text string) (*bundle.Document, error) {
+	manifest, err := json.Marshal(map[string]any{
+		"mode":                          "document",
+		"entryPoint":                    "document.md",
+		document.UnsavedDocumentTypeKey: "markdown",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return bundle.FromFiles(map[string][]byte{
+		"manifest.json": manifest,
+		"document.md":   []byte(text),
+	})
+}
+
+// newBlankMdBook はmdBookとして有効な最小構造だけを作ります。
+func newBlankMdBook() (*bundle.Document, error) {
+	files := map[string][]byte{
+		"manifest.json": []byte(`{"spec":{"name":"mdzip-spec","version":"1.1.0"},"mode":"project","entryPoint":"src/introduction.md"}`),
+		"book.toml": []byte("[book]\ntitle = \"新しい本\"\nlanguage = \"ja\"\nsrc = \"src\"\n"),
+		"src/SUMMARY.md": []byte("# Summary\n\n- [本文](introduction.md)\n"),
+		"src/introduction.md": []byte(""),
+	}
+	return bundle.FromFiles(files)
+}
+
+// newDocument は説明付きの初期内容を持つ新規文書を作ります。
 func newDocument(kind string) (*bundle.Document, error) {
 	d := bundle.New()
 	switch kind {
+	case "markdown":
+		return newMarkdownDocument("# 新しいMarkdown\n\nここから文章を書き始めます。\n\n表示と編集を切り替えながら、1つのMarkdownファイルとして保存できます。\n")
 	case "slides":
 		return bundle.NewSlides()
 	case "mdz":
@@ -96,6 +126,25 @@ func newDocument(kind string) (*bundle.Document, error) {
 			return nil, err
 		}
 		return bundle.FromFiles(files)
+	default:
+		return nil, fmt.Errorf("新規文書の種類が不正です")
+	}
+}
+
+// newBlankDocument は文書種別ごとの最小構造だけを作ります。
+func newBlankDocument(kind string) (*bundle.Document, error) {
+	switch kind {
+	case "markdown":
+		return newMarkdownDocument("")
+	case "mdz":
+		d := bundle.New()
+		d.Files = map[string][]byte{"本文.md": []byte("")}
+		d.Entry = "本文.md"
+		return d, nil
+	case "mdbook":
+		return newBlankMdBook()
+	case "slides":
+		return bundle.NewBlankSlides()
 	default:
 		return nil, fmt.Errorf("新規文書の種類が不正です")
 	}
