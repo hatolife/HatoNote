@@ -13,6 +13,9 @@ func TestLimitsAndDefaults(t *testing.T) {
 	if Default().InitMode != "custom" {
 		t.Fatalf("default init mode = %q", Default().InitMode)
 	}
+	if !Default().ShowMarkdownCheatsheet {
+		t.Fatal("Markdown cheatsheet must be visible by default")
+	}
 	for _, editor := range []string{"builtin", "wysiwyg", "neovim"} {
 		s := Default()
 		s.Editor = editor
