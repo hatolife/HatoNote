@@ -192,6 +192,37 @@ func (s *Session) Put(name string, b []byte) error {
 	return s.Checkpoint()
 }
 
+// SetManifestValue はmanifest拡張値を作業領域と復旧データへ保存します。
+func (s *Session) SetManifestValue(key string, value any) error {
+	if strings.TrimSpace(key) == "" {
+		return fmt.Errorf("manifestキーを指定してください")
+	}
+	manifest := map[string]json.RawMessage{}
+	if err := json.Unmarshal(s.Doc.Files["manifest.json"], &manifest); err != nil {
+		return err
+	}
+	if value == nil {
+		delete(manifest, key)
+	} else {
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		manifest[key] = raw
+	}
+	data, err := json.MarshalIndent(manifest, "", "\t")
+	if err != nil {
+		return err
+	}
+	if err := s.write("manifest.json", data); err != nil {
+		return err
+	}
+	s.Doc.Files["manifest.json"] = data
+	s.Doc.Manifest = manifest
+	s.Dirty = true
+	return s.Checkpoint()
+}
+
 // SetPageOrder は本文のパスを変更せずに、復旧可能なページ順を保存します。
 func (s *Session) SetPageOrder(order []string) error {
 	pages := s.Doc.Pages()
