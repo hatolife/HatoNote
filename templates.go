@@ -92,13 +92,14 @@ func (a *App) AddPageFromTemplate(name, templateID string) error {
 
 type DocumentTemplate struct {
 	ID    string `json:"id"`
+	Kind  string `json:"kind"`
 	Title string `json:"title"`
 }
 
 var builtInDocumentTemplates = []DocumentTemplate{
-	{ID:"document.memo", Title:"メモ"},
-	{ID:"document.meeting", Title:"議事録"},
-	{ID:"document.spec", Title:"仕様書"},
+	{ID:"document.memo", Kind:"mdz", Title:"メモ"},
+	{ID:"document.meeting", Kind:"mdz", Title:"議事録"},
+	{ID:"document.spec", Kind:"mdz", Title:"仕様書"},
 }
 
 func (a *App) DocumentTemplates() []DocumentTemplate {
