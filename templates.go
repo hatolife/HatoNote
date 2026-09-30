@@ -7,6 +7,7 @@ import (
 
 	"github.com/hatolife/HatoNote/internal/bundle"
 	"github.com/hatolife/HatoNote/internal/document"
+	"github.com/hatolife/HatoNote/internal/workspace"
 )
 
 type PageTemplate struct {
@@ -86,4 +87,56 @@ func (a *App) AddPageFromTemplate(name, templateID string) error {
 		return fmt.Errorf("ページテンプレートは通常MDZで使用してください")
 	}
 	return a.addPageLocked(name, text)
+}
+
+
+type DocumentTemplate struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+var builtInDocumentTemplates = []DocumentTemplate{
+	{ID:"document.memo", Title:"メモ"},
+	{ID:"document.meeting", Title:"議事録"},
+	{ID:"document.spec", Title:"仕様書"},
+}
+
+func (a *App) DocumentTemplates() []DocumentTemplate {
+	return append([]DocumentTemplate(nil), builtInDocumentTemplates...)
+}
+
+func documentTemplateContent(id string) (string, error) {
+	switch id {
+	case "document.memo":
+		return "# メモ\n\n## 内容\n\n", nil
+	case "document.meeting":
+		return "# 議事録\n\n- 日時:\n- 参加者:\n\n## 議題\n\n## 決定事項\n\n## TODO\n\n", nil
+	case "document.spec":
+		return "# 仕様書\n\n## 目的\n\n## 要件\n\n## 仕様\n\n## 備考\n\n", nil
+	default:
+		return "", fmt.Errorf("文書テンプレートが見つかりません")
+	}
+}
+
+func (a *App) NewDocumentFromTemplate(templateID string) (bool, error) {
+	if !a.discardAllowed() {
+		return false, nil
+	}
+	text, err := documentTemplateContent(templateID)
+	if err != nil {
+		return false, err
+	}
+	doc, err := newDocument("mdz")
+	if err != nil {
+		return false, err
+	}
+	doc.Files[doc.Entry] = []byte(text)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	session, err := workspace.New(a.base, doc, "", true)
+	if err != nil {
+		return false, err
+	}
+	a.adoptLocked(session)
+	return true, nil
 }
