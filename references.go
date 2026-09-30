@@ -148,10 +148,14 @@ func (a *App) DeleteReference(id string) error {
 	if err != nil {
 		return err
 	}
-	marker := "[@" + id + "]"
 	for name, data := range a.session.Doc.Files {
-		if bundle.IsMarkdown(name) && strings.Contains(string(data), marker) {
-			return fmt.Errorf("本文から参照中の引用元は削除できません")
+		if !bundle.IsMarkdown(name) {
+			continue
+		}
+		for _, cited := range citationIDs(string(data)) {
+			if cited == id {
+				return fmt.Errorf("本文から参照中の引用元は削除できません")
+			}
 		}
 	}
 	next := set.Items[:0]
@@ -207,15 +211,15 @@ func (a *App) ApplyReferences(page string) (string, error) {
 		builder.WriteString("<!-- HATONOTE_REFERENCES_END -->\n")
 		block = builder.String()
 	}
-	result := strings.TrimSpace(body)
+	result := body
 	if block != "" {
-		if result != "" {
-			result += "\n\n"
+		if result != "" && !strings.HasSuffix(result, "\n") {
+			result += "\n"
+		}
+		if result != "" && !strings.HasSuffix(result, "\n\n") {
+			result += "\n"
 		}
 		result += block
-	}
-	if result != "" && !strings.HasSuffix(result, "\n") {
-		result += "\n"
 	}
 	if err := a.session.Put(page, []byte(result)); err != nil {
 		return "", err
