@@ -26,7 +26,7 @@ const menu=async(label:string)=>{await ready();await page.locator('.slide-card.s
 const opLabels={duplicate:'複製',up:'上へ移動',undo:'構成を元に戻す',redo:'構成をやり直す',remove:'削除',add:'スライドを追加'};
 try {
 	await page.goto(url);await ready();
-	await page.locator('#welcome-new').click();await page.locator('[data-new-kind=slides]').click();await ready();
+	await page.locator('[data-new-kind=slides][data-new-variant=guide]').click();await ready();
 	await slide.locator('section h1').filter({hasText:'新規スライド'}).waitFor();
 	assert.equal((await rpc('State')).mode,'slides');
 	assert.equal(await page.locator('.slide-card').count(),8);
@@ -249,7 +249,7 @@ try {
 	await page.evaluate(()=>window.testFullscreen.active=true);
 	await page.locator('#slides-start').click();await ready();await page.keyboard.press('Escape');await page.locator('#presentation').waitFor({state:'hidden'});await ready();
 	assert.deepEqual(await page.evaluate(()=>window.testFullscreen),{active:true,entered:1,exited:1});
-	await page.locator('#new').click();await page.locator('[data-new-kind=document]').click();await ready();assert.equal(await page.locator('#slide-preview').isVisible(),false);await page.frameLocator('#preview').locator('h1').waitFor();
+	await page.locator('#new').click();await page.locator('[data-new-kind=mdz][data-new-variant=guide]').click();await ready();assert.equal(await page.locator('#slide-preview').isVisible(),false);await page.frameLocator('#preview').locator('h1').waitFor();
 	assert.equal(await page.locator('#editing').getAttribute('aria-checked'),'true');
 	await page.locator('#add-page').click();await page.locator('#page-name').fill('拡張子なし');
 	await page.locator('#page-dialog button[value=add]').click();await ready();
