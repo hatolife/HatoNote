@@ -661,3 +661,41 @@ footer #status { flex: 1; }
 .history-diff-columns h4{margin:0 0 6px;font-size:11px;color:var(--muted)}
 .history-diff-columns pre{margin:0;max-height:30vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 Consolas,monospace;background:var(--bg);padding:9px;border-radius:5px}
 @media(max-width:720px){.history-diff-columns{grid-template-columns:1fr}.history-diff-columns section+section{border-left:0;border-top:1px solid var(--line)}.history-actions{flex-wrap:wrap}}
+
+
+/* Export */
+#export-dialog {
+	width: min(620px, calc(100vw - 48px));
+}
+.export-options {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+	margin-top: 18px;
+}
+.export-options button {
+	display: grid;
+	gap: 6px;
+	min-height: 110px;
+	padding: 16px;
+	text-align: left;
+	white-space: normal;
+	border: 1px solid var(--line);
+	background: var(--bg);
+}
+.export-options button:hover,
+.export-options button:focus-visible {
+	background: var(--active);
+	border-color: var(--accent);
+}
+.export-options strong {
+	font-size: 15px;
+}
+.export-options span {
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.6;
+}
+@media(max-width:620px) {
+	.export-options { grid-template-columns: 1fr; }
+}
