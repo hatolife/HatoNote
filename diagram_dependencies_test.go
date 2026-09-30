@@ -70,3 +70,18 @@ func TestResolveDiagramExecutableRequiresExecutableBit(t *testing.T) {
 		t.Fatal("executable file rejected")
 	}
 }
+
+
+func TestDiagramDependencyRejectsNonExecutableFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows executable detection uses file type and PATHEXT semantics")
+	}
+	filename := filepath.Join(t.TempDir(), "mmdc")
+	if err := os.WriteFile(filename, []byte("#!/bin/sh\nexit 0\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dependency := dependencyForExecutable("Mermaid", filename, "mmdc")
+	if dependency.Found {
+		t.Fatalf("non-executable file was detected: %+v", dependency)
+	}
+}
