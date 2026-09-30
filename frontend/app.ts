@@ -966,6 +966,7 @@ async function render(): Promise<void> {
 	}
 	for (const img of doc.querySelectorAll('img')) {
 		const source = img.getAttribute('src') || '';
+		if (/^data:image\//i.test(source)) continue;
 		if (documentIs('markdown')) {
 			const target = resolveSingleMarkdownImage(source);
 			if (target) img.src = `${location.origin}/local-image?path=${encodeURIComponent(target)}`;
@@ -2326,7 +2327,9 @@ async function slideHTML(slide: Slide, text?: string): Promise<string> {
 	await enhanceDiagramBlocks(doc);
 	await enhanceMathBlocks(doc);
 	for (const image of doc.querySelectorAll('img')) {
-		const target = resolveLink(image.getAttribute('src') || '', slide.file);
+		const source = image.getAttribute('src') || '';
+		if (/^data:image\//i.test(source)) continue;
+		const target = resolveLink(source, slide.file);
 		if (target) image.src = `${location.origin}/bundle/${target.path.split('/').map(encodeURIComponent).join('/')}`;
 		else { image.removeAttribute('src'); image.alt += '（外部画像は非表示）'; }
 	}
