@@ -41,6 +41,7 @@ type Settings struct {
 	MermaidPath                  string `json:"mermaidPath"`
 	JavaPath                     string `json:"javaPath"`
 	PlantUMLJar                  string `json:"plantumlJar"`
+	KatexPath                    string `json:"katexPath"`
 }
 
 func Default() Settings {
@@ -94,6 +95,7 @@ func (s Settings) Validate() error {
 		{"Mermaid実行ファイル", s.MermaidPath},
 		{"Java実行ファイル", s.JavaPath},
 		{"PlantUML JAR", s.PlantUMLJar},
+		{"KaTeX実行ファイル", s.KatexPath},
 	} {
 		if len(value.path) > 4096 {
 			return fmt.Errorf("%sのパスが長すぎます", value.name)
