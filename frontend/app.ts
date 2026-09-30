@@ -162,11 +162,11 @@ const wysiwyg = new WysiwygEditor(wysiwygRoot, wysiwygContent, wysiwygToolbar, w
 
 function status(message: string, error = false): void { element('status').textContent = message; element('status').title = message; element('status').classList.toggle('error', error); }
 function runCommand(id: string): void {
-	if (macroRecording && !macroPlaying && !id.startsWith('macro.')) {
+	void commands.execute(id).then(executed => {
+		if (!executed || !macroRecording || macroPlaying || id.startsWith('macro.')) return;
 		if (macroRecording.length < 100) macroRecording.push(id);
 		else status('マクロは100コマンドまでです', true);
-	}
-	void commands.execute(id).catch(error => status(String(error), true));
+	}).catch(error => status(String(error), true));
 }
 function loadRecentDocuments(): string[] {
 	try {
