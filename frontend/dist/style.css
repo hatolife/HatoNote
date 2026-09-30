@@ -762,3 +762,25 @@ footer #status { flex: 1; }
 .document-template-option strong{font-size:13px}
 .document-template-option span{color:var(--muted);font-size:10px}
 @media(max-width:620px){#document-template-options{grid-template-columns:1fr}}
+
+
+/* エディター切替は表示/編集と同系統のスライド式トグルとして扱います。 */
+#editor-engine.editor-toggle{position:relative;isolation:isolate}
+#editor-engine.editor-toggle::before{content:'';position:absolute;z-index:-1;left:4px;top:4px;bottom:4px;width:calc((100% - 8px) / 3);border-radius:999px;background:linear-gradient(145deg,color-mix(in srgb,var(--paper) 90%,transparent),color-mix(in srgb,var(--active) 75%,transparent));box-shadow:inset 0 1px 1px #ffffff90,0 1px 5px #243a5020;transition:transform 180ms ease,width 180ms ease}
+#editor-engine.editor-toggle[data-count="2"]::before{width:calc((100% - 8px) / 2)}
+#editor-engine.editor-toggle[data-index="0"]::before{transform:translateX(0)}
+#editor-engine.editor-toggle[data-index="1"]::before{transform:translateX(100%)}
+#editor-engine.editor-toggle[data-index="2"]::before{transform:translateX(200%)}
+#editor-engine.editor-toggle button{min-width:64px}
+#editor-engine.editor-toggle button.selected{background:transparent;box-shadow:none}
+@media (prefers-reduced-motion:reduce){#editor-engine.editor-toggle::before{transition:none}}
+
+/* 設定画面は通常ダイアログの中央寄せを受けず、タイトルバー直下へ固定します。 */
+body.settings-screen-open #settings-dialog{position:fixed;left:56px;top:34px;right:0;bottom:0;width:auto;height:auto;max-width:none!important;max-height:none!important;margin:0;transform:none!important;padding:26px 32px 30px;overflow:auto}
+#settings-form{display:block;columns:2 470px;column-gap:16px;max-width:1180px;margin:0 auto}
+#settings-form>h2,#settings-form>.settings-about,#settings-form>#settings-error,#settings-form>.dialog-actions{column-span:all}
+#settings-form>h2{margin:0 0 16px}
+#settings-form>.settings-about{box-sizing:border-box;width:100%;margin:0 0 16px}
+#settings-form>fieldset:not(.settings-about){display:inline-block;box-sizing:border-box;width:100%;margin:0 0 16px;break-inside:avoid-column}
+#settings-form>.dialog-actions{margin-top:0}
+@media(max-width:850px){#settings-form{columns:1}body.settings-screen-open #settings-dialog{left:56px;padding:20px 18px 24px}}
