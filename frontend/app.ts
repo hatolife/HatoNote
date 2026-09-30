@@ -903,8 +903,9 @@ async function enhanceDiagramBlocks(doc: Document): Promise<void> {
 function mathElementFromMarkup(doc: Document, markup: string, display: boolean): HTMLElement {
 	const parsed = new DOMParser().parseFromString(markup, 'application/xml');
 	if (parsed.querySelector('parsererror')) throw new Error('MathMLを解析できません');
-	const math = parsed.documentElement;
-	if (math.localName !== 'math') throw new Error('MathMLのmath要素がありません');
+	const root = parsed.documentElement;
+	const math = root.localName === 'math' ? root : parsed.querySelector('math');
+	if (!math) throw new Error('MathMLのmath要素がありません');
 	const wrapper = doc.createElement(display ? 'div' : 'span');
 	wrapper.className = display ? 'math-render math-display' : 'math-render math-inline';
 	wrapper.append(doc.importNode(math, true));
