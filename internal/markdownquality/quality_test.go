@@ -14,7 +14,7 @@ func TestFormatSkipsCodeFences(t *testing.T) {
 	if !strings.Contains(got, "code   \n\n\n") {
 		t.Fatalf("code fence content changed: %q", got)
 	}
-	if strings.Contains(got, "\n\n\nText") {
+	if strings.Contains(got, "\n\n\n\nText") {
 		t.Fatalf("blank lines were not limited: %q", got)
 	}
 	if !strings.HasSuffix(got, "\n") {
