@@ -1479,6 +1479,7 @@ element('settings-save').onclick = () => {
 		const keepEngine = activeEngine;
 		try { await api.Configure(next); } catch (error) { element('settings-error').textContent = String(error); throw error; }
 		cfg = next; autoDeadline = 0; applyTheme(); await refreshEditorAvailability();
+		element('markdown-cheatsheet').hidden = !editing || !cfg.showMarkdownCheatsheet;
 		for (const h of histories.values()) h.setLimit(cfg.undoLevels);
 		if(editing && keepEngine === 'neovim') await api.StartNative();
 		await refreshSidebar();
