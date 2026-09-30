@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hatolife/HatoNote/internal/settings"
+	"github.com/hatolife/HatoNote/internal/document"
 	"github.com/hatolife/HatoNote/internal/workspace"
 )
 
@@ -62,5 +63,28 @@ func TestPageTemplateOnlyForNormalMDZ(t *testing.T) {
 	t.Cleanup(app.shutdown)
 	if err := app.AddPageFromTemplate("memo", "memo"); err == nil {
 		t.Fatal("mdBook accepted normal MDZ page template")
+	}
+}
+
+
+func TestDocumentTemplates(t *testing.T) {
+	app := &App{base:t.TempDir(), cfg:settings.Default()}
+	templates := app.DocumentTemplates()
+	if len(templates) != 3 {
+		t.Fatalf("document templates = %+v", templates)
+	}
+	ok, err := app.NewDocumentFromTemplate("document.meeting")
+	if err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	t.Cleanup(app.shutdown)
+	if app.State().DocumentType != document.MDZ {
+		t.Fatalf("document type = %q", app.State().DocumentType)
+	}
+	if app.session.Doc.Entry != "本文.md" || !strings.Contains(string(app.session.Doc.Files["本文.md"]), "# 議事録") {
+		t.Fatalf("document template = %q", app.session.Doc.Files["本文.md"])
+	}
+	if _, err := app.NewDocumentFromTemplate("missing"); err == nil {
+		t.Fatal("unknown document template accepted")
 	}
 }
