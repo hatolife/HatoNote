@@ -1233,6 +1233,7 @@ async function refreshReferences(selected = ''): Promise<void> {
 	referenceItems = set.items || [];
 	renderReferenceSelect(selected);
 }
+element('wysiwyg-citation').onmousedown = event => { event.preventDefault(); wysiwyg.rememberSelection(); };
 element('wysiwyg-citation').onclick = () => void action(async () => {
 	if (!documentIs('mdz') || activeEngine !== 'wysiwyg') return;
 	await refreshReferences();
