@@ -17,7 +17,7 @@
 - EDITOR-BUILTIN-004: Redoできない場合はRedo操作を無効表示する。
 - EDITOR-BUILTIN-005: `builtin` のスクロール位置をプレビューと同期できる。
 
-## wysiwyg
+## wysiwyg（リッチ編集）
 
 - EDITOR-WYSIWYG-001: `wysiwyg` はMarkdownの表示結果に近い見た目のまま本文を編集できる。
 - EDITOR-WYSIWYG-002: `wysiwyg` の保存データはMarkdown本文とし、WYSIWYG専用の文書形式へ変換して保存しない。
@@ -29,12 +29,22 @@
 - EDITOR-WYSIWYG-008: スライド文書の `wysiwyg` は現在スライドのレイアウト、余白、フォント、文字サイズ、背景色を編集表示へ反映する。
 - EDITOR-WYSIWYG-009: スライド文書の `wysiwyg` は自由配置編集を提供せず、Markdown本文を正規データとして維持する。
 - EDITOR-WYSIWYG-010: `columns` レイアウトのWYSIWYG編集では列区切り `<!-- column -->` を失わない。
-- EDITOR-WYSIWYG-011: WYSIWYG編集中は編集面の上部に書式バーを表示する。
+- EDITOR-WYSIWYG-011: リッチ編集中は編集面の上部に書式バーを表示する。
 - EDITOR-WYSIWYG-012: 書式バーから段落・見出し、太字、斜体、取り消し線、コード、箇条書き、番号付きリスト、リンク、水平線を変更できる。
 - EDITOR-WYSIWYG-013: スライド文書では1スライドにつき1つのMarkdownファイルだけをWYSIWYG編集対象とする。
 - EDITOR-WYSIWYG-014: スライドWYSIWYGは1つのMarkdownファイル内に複数スライドを保持する機能を提供しない。
 - EDITOR-WYSIWYG-015: スライドWYSIWYGでは `---` を現在スライド内の水平線として扱い、ページ区切りとして解釈しない。
 - EDITOR-WYSIWYG-016: スライドのページ分割操作は分割後の各ページを別のMarkdownファイルとして作成する。
+- EDITOR-WYSIWYG-017: UI上の編集エンジン名は `WYSIWYG` ではなく「リッチ編集」と表示する。
+- EDITOR-WYSIWYG-018: 書式バーから3列3行の表を挿入できる。
+- EDITOR-WYSIWYG-019: 表内では現在セルを基準に行を上または下へ追加でき、現在行を削除できる。
+- EDITOR-WYSIWYG-020: 表内では現在セルを基準に列を左または右へ追加でき、現在列を削除できる。
+- EDITOR-WYSIWYG-021: 表の配置指定はMarkdown表で保持できる列単位の左寄せ、中央寄せ、右寄せとして保存する。
+- EDITOR-WYSIWYG-022: 通常MDZのリッチ編集では折りたたみ要素を挿入できる。
+- EDITOR-WYSIWYG-023: スライドのリッチ編集では折りたたみ要素を提供しない。
+- EDITOR-WYSIWYG-024: リッチ編集では選択範囲へ文字色を指定でき、Markdownには安全な `<span style="color:...">` として保存する。
+- EDITOR-WYSIWYG-025: リッチ編集では選択範囲へ文字サイズを指定でき、Markdownには安全な `<span style="font-size:...">` として保存する。
+- EDITOR-WYSIWYG-026: HTML書式は許可済みタグと属性だけを描画し、スクリプト、イベント属性、危険なURL、未許可CSSを実行または保持しない。
 
 ## neovim
 
