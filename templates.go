@@ -23,21 +23,44 @@ var builtInPageTemplates = []PageTemplate{
 	{ID: "spec", Title: "仕様書", Content: "# 仕様書\n\n## 目的\n\n## 要件\n\n## 仕様\n\n## 備考\n\n"},
 }
 
-func (a *App) PageTemplates() []PageTemplate {
-	result := make([]PageTemplate, len(builtInPageTemplates))
-	for i, template := range builtInPageTemplates {
-		result[i] = PageTemplate{ID: template.ID, Title: template.Title}
-	}
-	return result
-}
-
-func pageTemplateContent(id string) (string, error) {
+func (a *App) PageTemplates() ([]PageTemplate, error) {
+	result := make([]PageTemplate, 0, len(builtInPageTemplates)+8)
 	for _, template := range builtInPageTemplates {
-		if template.ID == id {
-			return template.Content, nil
+		result = append(result, PageTemplate{ID: template.ID, Title: template.Title})
+	}
+	items, err := loadUserTemplates(a.base)
+	if err != nil {
+		return nil, err
+	}
+	for _, template := range items {
+		if template.Scope == "page" && template.Kind == "mdz" {
+			result = append(result, PageTemplate{ID: template.ID, Title: template.Title})
 		}
 	}
-	return "", fmt.Errorf("テンプレートが見つかりません")
+	return result, nil
+}
+
+func builtInPageTemplateContent(id string) (string, bool) {
+	for _, template := range builtInPageTemplates {
+		if template.ID == id {
+			return template.Content, true
+		}
+	}
+	return "", false
+}
+
+func (a *App) pageTemplateContent(id string) (string, error) {
+	if content, ok := builtInPageTemplateContent(id); ok {
+		return content, nil
+	}
+	template, ok, err := a.userTemplate(id)
+	if err != nil {
+		return "", err
+	}
+	if !ok || template.Scope != "page" || template.Kind != "mdz" {
+		return "", fmt.Errorf("ページテンプレートが見つかりません")
+	}
+	return template.Content, nil
 }
 
 func (a *App) addPageLocked(name, text string) error {
@@ -77,7 +100,7 @@ func (a *App) addPageLocked(name, text string) error {
 }
 
 func (a *App) AddPageFromTemplate(name, templateID string) error {
-	text, err := pageTemplateContent(templateID)
+	text, err := a.pageTemplateContent(templateID)
 	if err != nil {
 		return err
 	}
@@ -88,7 +111,6 @@ func (a *App) AddPageFromTemplate(name, templateID string) error {
 	}
 	return a.addPageLocked(name, text)
 }
-
 
 type DocumentTemplate struct {
 	ID    string `json:"id"`
@@ -102,30 +124,54 @@ var builtInDocumentTemplates = []DocumentTemplate{
 	{ID:"document.spec", Kind:"mdz", Title:"仕様書"},
 }
 
-func (a *App) DocumentTemplates() []DocumentTemplate {
-	return append([]DocumentTemplate(nil), builtInDocumentTemplates...)
+func (a *App) DocumentTemplates() ([]DocumentTemplate, error) {
+	result := append([]DocumentTemplate(nil), builtInDocumentTemplates...)
+	items, err := loadUserTemplates(a.base)
+	if err != nil {
+		return nil, err
+	}
+	for _, template := range items {
+		if template.Scope == "document" && template.Kind == "mdz" {
+			result = append(result, DocumentTemplate{ID:template.ID, Kind:template.Kind, Title:template.Title})
+		}
+	}
+	return result, nil
 }
 
-func documentTemplateContent(id string) (string, error) {
+func builtInDocumentTemplateContent(id string) (string, bool) {
 	switch id {
 	case "document.memo":
-		return "# メモ\n\n## 内容\n\n", nil
+		return "# メモ\n\n## 内容\n\n", true
 	case "document.meeting":
-		return "# 議事録\n\n- 日時:\n- 参加者:\n\n## 議題\n\n## 決定事項\n\n## TODO\n\n", nil
+		return "# 議事録\n\n- 日時:\n- 参加者:\n\n## 議題\n\n## 決定事項\n\n## TODO\n\n", true
 	case "document.spec":
-		return "# 仕様書\n\n## 目的\n\n## 要件\n\n## 仕様\n\n## 備考\n\n", nil
+		return "# 仕様書\n\n## 目的\n\n## 要件\n\n## 仕様\n\n## 備考\n\n", true
 	default:
+		return "", false
+	}
+}
+
+func (a *App) documentTemplateContent(id string) (string, error) {
+	if content, ok := builtInDocumentTemplateContent(id); ok {
+		return content, nil
+	}
+	template, ok, err := a.userTemplate(id)
+	if err != nil {
+		return "", err
+	}
+	if !ok || template.Scope != "document" || template.Kind != "mdz" {
 		return "", fmt.Errorf("文書テンプレートが見つかりません")
 	}
+	return template.Content, nil
 }
 
 func (a *App) NewDocumentFromTemplate(templateID string) (bool, error) {
-	if !a.discardAllowed() {
-		return false, nil
-	}
-	text, err := documentTemplateContent(templateID)
+	text, err := a.documentTemplateContent(templateID)
 	if err != nil {
 		return false, err
+	}
+	if !a.discardAllowed() {
+		return false, nil
 	}
 	doc, err := newDocument("mdz")
 	if err != nil {
