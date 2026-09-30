@@ -4,7 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -20,7 +20,7 @@ func resolveDiagramExecutable(configured, fallback string) string {
 		return found
 	}
 	if info, err := os.Stat(configured); err == nil && !info.IsDir() {
-		if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+		if goruntime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
 			return ""
 		}
 		if absolute, absErr := filepath.Abs(configured); absErr == nil {
