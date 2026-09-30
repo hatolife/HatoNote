@@ -75,6 +75,16 @@
 <label class="check"><input name="lintFinalNewline" type="checkbox">末尾改行の欠落を検出</label>
 <p>FormatterとLintはコードフェンス内の本文を変更・検査対象にしません。</p>
 </fieldset>
+<fieldset><legend>図表</legend>
+<label>Mermaid CLI（空欄はPATHからmmdcを検出）<div class="input-row"><input id="mermaid-path" name="mermaidPath" placeholder="mmdc"><button type="button" id="choose-mermaid">参照</button></div></label>
+<p id="mermaid-status" role="status"></p>
+<label>Java（空欄はPATHからjavaを検出）<div class="input-row"><input id="java-path" name="javaPath" placeholder="java"><button type="button" id="choose-java">参照</button></div></label>
+<p id="java-status" role="status"></p>
+<label>PlantUML JAR<div class="input-row"><input id="plantuml-jar" name="plantumlJar" placeholder="C:\Tools\plantuml.jar"><button type="button" id="choose-plantuml">参照</button></div></label>
+<p id="plantuml-status" role="status"></p>
+<button id="check-diagram-dependencies" type="button">図表依存を再確認</button>
+<p>Mermaidはmmdc、PlantUMLはJavaとplantuml.jarを使用します。利用できない場合はコードブロックのまま表示します。</p>
+</fieldset>
 <fieldset><legend>保存と復旧</legend>
 <label class="check"><input name="autoSave" type="checkbox">開いている文書を定期的に自動保存</label>
 <label>保存間隔（秒）<input name="autoSaveSeconds" type="number" min="5" max="86400" required></label>
