@@ -42,6 +42,8 @@ wingetが使えない場合は、画面の「導入方法」を見て手動で�
 
 ## 必要なアプリの確認
 
-「設定」では、mdBook・Neovim・`init.lua`が見つかったかどうかと、その場所を確認できます。表示が古いときは「存在を再確認」を押してください。
+「設定」では、mdBook・Neovim・`init.lua`に加えて、Mermaid CLI・Java・PlantUML JAR・KaTeX CLIの検出状態を確認できます。表示が古いときは各再確認ボタンを押してください。
 
 `init.lua`の場所を空欄にすると、Neovimの標準の場所から探します。見つからなければ、設定なし(`--clean`)でNeovimを起動します。
+
+Mermaid、PlantUML、KaTeXは任意機能です。未導入でもMarkdown編集・表示は利用でき、対象コードブロックは元の表示へ戻ります。
