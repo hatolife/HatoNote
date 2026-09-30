@@ -17,8 +17,8 @@
 - 初期実装済み: 設定可能なMarkdown FormatterとLint。
 - 初期実装済み: 最近開いた文書。
 - 初期実装済み: Command体系、Command Palette、マクロ記録と再生。
-- 依存資源対応待ち: Mermaid。
-- 依存資源対応待ち: PlantUML。
+- 初期実装済み: Mermaid。
+- 初期実装済み: PlantUML。
 - 依存資源対応待ち: 数式表示。
 
 ## 文書操作
