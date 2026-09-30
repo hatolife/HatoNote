@@ -20,3 +20,7 @@ html.debug-outline .reveal .slide-content img,html.debug-outline .reveal .slide-
 .slide-page-number[data-position=bottom-left]{bottom:18px;left:24px;text-align:left}
 .slide-page-number[data-position=bottom-center]{bottom:18px;left:50%;transform:translateX(-50%)}
 .slide-page-number[data-position=bottom-right]{bottom:18px;right:24px;text-align:right}
+
+.math-render{display:flex;justify-content:center;align-items:center;max-width:100%;overflow:hidden;margin:.7em 0}
+.math-render math{font-size:1.2em;max-width:100%}
+.math-fallback{opacity:.9}
