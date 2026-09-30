@@ -166,6 +166,20 @@ func (d SlideDeck) Validate(files map[string][]byte) error {
 	return nil
 }
 
+func NewBlankSlides() (*Document, error) {
+	deck := NewSlideDeck("新規スライド")
+	deck.Slides = []Slide{{ID: "slide-001", File: "slides/slide-001.md", Title: "新規スライド", Layout: "standard", FontSize: deck.BodyFontSize}}
+	data, err := json.MarshalIndent(deck, "", "\t")
+	if err != nil {
+		return nil, err
+	}
+	return FromFiles(map[string][]byte{
+		"manifest.json":       []byte(`{"mode":"slides","entryPoint":"slides/slide-001.md"}`),
+		"slides.json":         data,
+		"slides/slide-001.md": []byte(""),
+	})
+}
+
 func NewSlides() (*Document, error) {
 	// 書式とページ移動を試せるサンプルを、編集可能なMarkdownとして用意します。
 	samples := []struct {
