@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hatolife/HatoNote/internal/bundle"
@@ -36,6 +37,9 @@ type Settings struct {
 	LintMaxLineLength            int  `json:"lintMaxLineLength"`
 	LintHeadingStep              bool `json:"lintHeadingStep"`
 	LintFinalNewline             bool `json:"lintFinalNewline"`
+	MermaidPath                  string `json:"mermaidPath"`
+	JavaPath                     string `json:"javaPath"`
+	PlantUMLJar                  string `json:"plantumlJar"`
 }
 
 func Default() Settings {
@@ -84,6 +88,18 @@ func (s Settings) Validate() error {
 	}
 	if s.LintMaxLineLength < 40 || s.LintMaxLineLength > 1000 {
 		return fmt.Errorf("Lintの最大行長は40〜1000で指定してください")
+	}
+	for _, value := range []struct{name, path string}{
+		{"Mermaid実行ファイル", s.MermaidPath},
+		{"Java実行ファイル", s.JavaPath},
+		{"PlantUML JAR", s.PlantUMLJar},
+	} {
+		if len(value.path) > 4096 {
+			return fmt.Errorf("%sのパスが長すぎます", value.name)
+		}
+	}
+	if s.PlantUMLJar != "" && !strings.EqualFold(filepath.Ext(s.PlantUMLJar), ".jar") {
+		return fmt.Errorf("PlantUMLは.jarファイルを指定してください")
 	}
 	return nil
 }
