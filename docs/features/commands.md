@@ -32,3 +32,5 @@
 - COMMAND-027: バックアップ履歴を開く操作をコマンドとして登録する。
 - COMMAND-028: 単一HTMLエクスポートをコマンドとして登録する。
 - COMMAND-029: PDFエクスポートをコマンドとして登録する。
+- COMMAND-030: Markdown Formatterをコマンドとして登録する。
+- COMMAND-031: Markdown Lintをコマンドとして登録する。
