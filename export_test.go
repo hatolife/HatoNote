@@ -113,3 +113,44 @@ func TestEnhanceExportDiagramsFallsBackToCode(t *testing.T) {
 		t.Fatalf("diagram fallback missing: %s", html)
 	}
 }
+
+func TestEnhanceExportMath(t *testing.T) {
+	script := writeTestExecutable(t, "katex", "cat >/dev/null\nprintf '<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><mn>42</mn></math>'")
+	doc := bundle.New()
+	doc.Entry = "index.md"
+	doc.Files["index.md"] = []byte("# Math\n\n```math\nx^2\n```\n\n$$y^2$$\n")
+	data, err := buildSingleHTML(doc, "Math")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := settings.Default()
+	cfg.KatexPath = script
+	data, err = enhanceExportMath(data, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(data)
+	if strings.Count(html, `class="math-render math-display"`) != 2 || !strings.Contains(html, "<math") {
+		t.Fatalf("math not embedded: %s", html)
+	}
+}
+
+func TestEnhanceExportMathFallsBack(t *testing.T) {
+	doc := bundle.New()
+	doc.Entry = "index.md"
+	doc.Files["index.md"] = []byte("```math\nx^2\n```\n")
+	data, err := buildSingleHTML(doc, "Math")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := settings.Default()
+	cfg.KatexPath = filepath.Join(t.TempDir(), "missing-katex")
+	data, err = enhanceExportMath(data, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(data)
+	if !strings.Contains(html, `data-math-error="true"`) || !strings.Contains(html, "language-math") {
+		t.Fatalf("math fallback missing: %s", html)
+	}
+}
