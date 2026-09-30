@@ -8,8 +8,7 @@
 		"test:ui": "node tests/integration.ts",
 		"test:slides": "node tests/slides.ts",
 		"test:layout": "node tests/layout.ts",
-		"test:commands": "node tests/commands.ts",
-		"test:diff": "node tests/diff.ts"
+		"test:commands": "node tests/commands.ts"
 	},
 	"devDependencies": {
 		"jszip": "^3.10.1",
