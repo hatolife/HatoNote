@@ -26,6 +26,7 @@ interface ReferenceSet { version: number; items: ReferenceItem[] }
 interface PageTemplate { id: string; title: string }
 interface DocumentTemplate { id: string; kind: string; title: string }
 interface UserTemplate { id: string; scope: 'page' | 'document'; kind: 'mdz'; title: string; content: string }
+interface UserTemplate { id: string; scope: 'page' | 'document'; kind: 'mdz'; title: string; content: string }
 interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
@@ -39,7 +40,7 @@ interface Backend {
 	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; NewBlankDocument(kind: string): Promise<boolean>; DocumentTemplates(): Promise<DocumentTemplate[]>; NewDocumentFromTemplate(templateID: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
-	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
+	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>; UserTemplates(): Promise<UserTemplate[]>; SaveUserTemplate(template: UserTemplate): Promise<UserTemplate>; DeleteUserTemplate(id: string): Promise<void>;
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; RenderMath(source:string, display:boolean): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>; UserTemplates(): Promise<UserTemplate[]>; SaveUserTemplate(template: UserTemplate): Promise<UserTemplate>; DeleteUserTemplate(id: string): Promise<void>;
 	References(): Promise<ReferenceSet>; SaveReference(reference: ReferenceItem): Promise<ReferenceItem>; DeleteReference(id: string): Promise<void>; ApplyReferences(page: string): Promise<string>;
@@ -1469,6 +1470,106 @@ async function refreshTemplateChoices(): Promise<void> {
 
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
 const cheatsheetDialog = element<HTMLDialogElement>('markdown-cheatsheet-dialog');
+const userTemplateList = element<HTMLElement>('user-template-list');
+const userTemplateScope = element<HTMLSelectElement>('user-template-scope');
+const userTemplateTitle = element<HTMLInputElement>('user-template-title');
+const userTemplateContent = element<HTMLTextAreaElement>('user-template-content');
+const userTemplateDelete = element<HTMLButtonElement>('user-template-delete');
+let selectedUserTemplateID = '';
+let userTemplates: UserTemplate[] = [];
+
+function resetUserTemplateEditor(scope: UserTemplate['scope'] = 'page'): void {
+	selectedUserTemplateID = '';
+	userTemplateScope.value = scope;
+	userTemplateTitle.value = '';
+	userTemplateContent.value = '';
+	userTemplateDelete.disabled = true;
+	element('user-template-error').textContent = '';
+	for (const button of userTemplateList.querySelectorAll<HTMLButtonElement>('button[data-template-id]')) button.classList.remove('selected');
+}
+
+function selectUserTemplate(template: UserTemplate): void {
+	selectedUserTemplateID = template.id;
+	userTemplateScope.value = template.scope;
+	userTemplateTitle.value = template.title;
+	userTemplateContent.value = template.content;
+	userTemplateDelete.disabled = false;
+	element('user-template-error').textContent = '';
+	for (const button of userTemplateList.querySelectorAll<HTMLButtonElement>('button[data-template-id]')) {
+		button.classList.toggle('selected', button.dataset.templateId === template.id);
+	}
+}
+
+function renderUserTemplateList(): void {
+	userTemplateList.replaceChildren();
+	if (!userTemplates.length) {
+		const empty = document.createElement('p');
+		empty.className = 'user-template-empty';
+		empty.textContent = 'ユーザー定義テンプレートはありません。';
+		userTemplateList.append(empty);
+		return;
+	}
+	for (const template of userTemplates) {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.dataset.templateId = template.id;
+		const title = document.createElement('strong');
+		title.textContent = template.title;
+		const meta = document.createElement('small');
+		meta.textContent = template.scope === 'page' ? 'ページ' : '文書';
+		button.append(title, meta);
+		button.onclick = () => selectUserTemplate(template);
+		userTemplateList.append(button);
+	}
+}
+
+async function refreshUserTemplateManager(selectID = ''): Promise<void> {
+	userTemplates = await api.UserTemplates();
+	renderUserTemplateList();
+	const selected = userTemplates.find(template => template.id === selectID);
+	if (selected) selectUserTemplate(selected);
+	else resetUserTemplateEditor();
+}
+
+async function invalidateTemplateChoices(): Promise<void> {
+	pageTemplatesLoaded = false;
+	documentTemplatesLoaded = false;
+	if (!element('welcome').hidden) await loadDocumentTemplates();
+}
+
+element('user-template-new').onclick = () => resetUserTemplateEditor(userTemplateScope.value as UserTemplate['scope']);
+element('user-template-save').onclick = () => void action(async () => {
+	const template: UserTemplate = {
+		id: selectedUserTemplateID,
+		scope: userTemplateScope.value as UserTemplate['scope'],
+		kind: 'mdz',
+		title: userTemplateTitle.value.trim(),
+		content: userTemplateContent.value,
+	};
+	try {
+		const saved = await api.SaveUserTemplate(template);
+		await invalidateTemplateChoices();
+		await refreshUserTemplateManager(saved.id);
+		status('テンプレートを保存しました');
+	} catch (error) {
+		element('user-template-error').textContent = String(error);
+		throw error;
+	}
+});
+userTemplateDelete.onclick = () => void action(async () => {
+	if (!selectedUserTemplateID) return;
+	const selected = userTemplates.find(template => template.id === selectedUserTemplateID);
+	if (!selected || !confirm(`テンプレート「${selected.title}」を削除しますか？`)) return;
+	try {
+		await api.DeleteUserTemplate(selectedUserTemplateID);
+		await invalidateTemplateChoices();
+		await refreshUserTemplateManager();
+		status('テンプレートを削除しました');
+	} catch (error) {
+		element('user-template-error').textContent = String(error);
+		throw error;
+	}
+});
 function showMarkdownCheatsheet(): void {
 	if (!editing) return;
 	if (cheatsheetDialog.open) {
@@ -1486,7 +1587,7 @@ function showSettings(): void {
 		if (!control) continue;
 		if (typeof value === 'boolean') (control as HTMLInputElement).checked = value; else control.value = String(value);
 	}
-	showAppDialog(settingsDialog);void checkDependencies();void checkDiagramDependencies();void refreshUserTemplates().catch(error=>{element('user-template-error').textContent=String(error);});
+	showAppDialog(settingsDialog);void checkDependencies();void checkDiagramDependencies();void refreshUserTemplateManager().catch(error => { element('user-template-error').textContent = String(error); });void refreshUserTemplates().catch(error=>{element('user-template-error').textContent=String(error);});
 }
 element('markdown-cheatsheet').onclick = () => runCommand('help.markdownCheatsheet');
 element('settings').onclick = () => runCommand('app.settings');
