@@ -9,7 +9,7 @@ import (
 )
 
 func TestRenderMathWithConfiguredKaTeX(t *testing.T) {
-	script := writeTestExecutable(t, "katex", "args=\" $* \"\ncase \"$args\" in *\" -F mathml \"*) ;; *) exit 5 ;; esac\ninput=$(cat)\nprintf '<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mtext>%s</mtext></math>' \"$input\"")
+	script := writeTestExecutable(t, "katex", "args=\" $* \"\ncase \"$args\" in *\" -F mathml \"*) ;; *) exit 5 ;; esac\ninput=$(cat)\nprintf '<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mtext>%s</mtext></math></span>' \"$input\"")
 	cfg := settings.Default()
 	cfg.KatexPath = script
 	value, err := renderMath(`c = \\sqrt{a^2+b^2}`, false, cfg)
@@ -22,7 +22,7 @@ func TestRenderMathWithConfiguredKaTeX(t *testing.T) {
 }
 
 func TestRenderMathDisplayMode(t *testing.T) {
-	script := writeTestExecutable(t, "katex", "args=\" $* \"\ncase \"$args\" in *\" -d \"*) ;; *) exit 6 ;; esac\ncat >/dev/null\nprintf '<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><mn>1</mn></math>'")
+	script := writeTestExecutable(t, "katex", "args=\" $* \"\ncase \"$args\" in *\" -d \"*) ;; *) exit 6 ;; esac\ncat >/dev/null\nprintf '<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><mn>1</mn></math></span>'")
 	cfg := settings.Default()
 	cfg.KatexPath = script
 	value, err := renderMath("1", true, cfg)
