@@ -237,7 +237,7 @@ func buildDocumentHTML(doc *bundle.Document, title string) ([]byte, error) {
 		body.WriteString("<article class=\"hatonote-page\" id=\"" + anchors[pageName] + "\"><header class=\"hatonote-page-path\">" + stdhtml.EscapeString(pageName) + "</header>" + rendered + "</article>")
 	}
 	css := `
-:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#202938;font:16px/1.75 "Segoe UI","Yu Gothic",Meiryo,sans-serif}.hatonote-toc,.hatonote-page{max-width:920px;margin:28px auto;padding:42px 54px;background:#fff;color:#202938;box-shadow:0 2px 16px #1f293712}.hatonote-toc ol{columns:2;padding-left:1.5em}.hatonote-page-path{color:#718096;font-size:12px;border-bottom:1px solid #d8e0ea;padding-bottom:10px;margin-bottom:28px}h1,h2,h3,h4,h5{line-height:1.3}pre{overflow:auto;padding:16px;background:#eef2f7;border-radius:7px}code{font-family:Consolas,monospace}img{max-width:100%;height:auto}table{border-collapse:collapse;width:100%}th,td{padding:7px 10px;border:1px solid #ccd5e0;text-align:left}blockquote{margin-left:0;padding-left:16px;border-left:4px solid #8aa4ce;color:#526176}a{color:#2563c7}@media print{@page{size:A4;margin:14mm}body{background:#fff}.hatonote-toc,.hatonote-page{max-width:none;margin:0;padding:0;box-shadow:none}.hatonote-toc{break-after:page}.hatonote-page{break-after:page}.hatonote-page:last-child{break-after:auto}}`
+:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#202938;font:16px/1.75 "Segoe UI","Yu Gothic",Meiryo,sans-serif}.hatonote-toc,.hatonote-page{max-width:920px;margin:28px auto;padding:42px 54px;background:#fff;color:#202938;box-shadow:0 2px 16px #1f293712}.hatonote-toc ol{columns:2;padding-left:1.5em}.hatonote-page-path{color:#718096;font-size:12px;border-bottom:1px solid #d8e0ea;padding-bottom:10px;margin-bottom:28px}h1,h2,h3,h4,h5{line-height:1.3}pre{overflow:auto;padding:16px;background:#eef2f7;border-radius:7px}code{font-family:Consolas,monospace}img{max-width:100%;height:auto}table{border-collapse:collapse;width:100%}th,td{padding:7px 10px;border:1px solid #ccd5e0;text-align:left}blockquote{margin-left:0;padding-left:16px;border-left:4px solid #8aa4ce;color:#526176}a{color:#2563c7}.math-render{display:flex;justify-content:center;overflow:auto;margin:1em 0}.math-render math{font-size:1.2em}@media print{@page{size:A4;margin:14mm}body{background:#fff}.hatonote-toc,.hatonote-page{max-width:none;margin:0;padding:0;box-shadow:none}.hatonote-toc{break-after:page}.hatonote-page{break-after:page}.hatonote-page:last-child{break-after:auto}}`
 	html := "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + stdhtml.EscapeString(title) + "</title><style>" + css + "</style></head><body>" + body.String() + "</body></html>"
 	return []byte(html), nil
 }
@@ -303,7 +303,7 @@ func buildSlidesHTML(doc *bundle.Document, title string) ([]byte, error) {
 		body.WriteString("</section>")
 	}
 	css := fmt.Sprintf(`
-*{box-sizing:border-box}html,body{margin:0;background:%s;color:#202b3e}body{font-family:"Segoe UI","Yu Gothic",Meiryo,sans-serif;padding:24px}.export-slide{position:relative;width:960px;height:%dpx;margin:0 auto 28px;padding:var(--slide-margin-y) var(--slide-margin-x);overflow:hidden;overflow-wrap:anywhere;box-shadow:0 3px 18px #0002}.slide-content{height:100%%;min-height:0}h1,h2,h3,h4,h5{font-weight:700;line-height:1.25;margin:0 0 .65em}h1{font-size:var(--slide-h1-size,1.65em)}h2{font-size:var(--slide-h2-size,1.3em)}h3{font-size:var(--slide-h3-size,1.12em)}h4{font-size:var(--slide-h4-size,1em)}h5{font-size:var(--slide-h5-size,.9em)}p{margin:.65em 0}ul,ol{margin:.7em 0;padding-left:1.4em}li{margin:.35em 0}img{display:block;max-width:100%%;max-height:340px;object-fit:contain;margin:16px auto}pre{font-size:.68em;line-height:1.5;overflow:hidden;padding:20px;background:#8497b522;border-radius:8px}table{border-collapse:collapse;width:100%%;font-size:.8em}td,th{border-bottom:1px solid #8497b566;padding:.35em .5em;text-align:left}.slide-columns{display:grid;grid-template-columns:1fr 1fr;gap:40px;height:100%%}.export-slide[data-layout=cover] .slide-content{display:flex;flex-direction:column;justify-content:center;text-align:center}.export-slide[data-layout=image] .slide-content{display:flex;flex-direction:column}.export-slide[data-layout=image] .slide-content>p:has(img){flex:1;min-height:0;margin:0;display:flex;align-items:center;justify-content:center}.export-slide[data-layout=image] img{max-height:100%%;height:100%%;margin:0}.slide-page-number{position:absolute;z-index:4;font:14px/1.2 "Segoe UI",sans-serif;opacity:.7}.slide-page-number[data-position=top-left]{top:18px;left:24px}.slide-page-number[data-position=top-center]{top:18px;left:50%%;transform:translateX(-50%%)}.slide-page-number[data-position=top-right]{top:18px;right:24px}.slide-page-number[data-position=bottom-left]{bottom:18px;left:24px}.slide-page-number[data-position=bottom-center]{bottom:18px;left:50%%;transform:translateX(-50%%)}.slide-page-number[data-position=bottom-right]{bottom:18px;right:24px}@media(max-width:1000px){body{padding:0}.export-slide{width:100vw;height:auto;aspect-ratio:%s;margin:0 0 16px}}@media print{@page{size:%s 7.5in;margin:0}body{padding:0;background:#fff}.export-slide{width:100vw;height:100vh;margin:0;box-shadow:none;break-after:page}.export-slide:last-child{break-after:auto}}`, deck.MarginColor, height, strings.ReplaceAll(deck.Aspect, ":", "/"), pageWidth)
+*{box-sizing:border-box}html,body{margin:0;background:%s;color:#202b3e}body{font-family:"Segoe UI","Yu Gothic",Meiryo,sans-serif;padding:24px}.export-slide{position:relative;width:960px;height:%dpx;margin:0 auto 28px;padding:var(--slide-margin-y) var(--slide-margin-x);overflow:hidden;overflow-wrap:anywhere;box-shadow:0 3px 18px #0002}.slide-content{height:100%%;min-height:0}h1,h2,h3,h4,h5{font-weight:700;line-height:1.25;margin:0 0 .65em}h1{font-size:var(--slide-h1-size,1.65em)}h2{font-size:var(--slide-h2-size,1.3em)}h3{font-size:var(--slide-h3-size,1.12em)}h4{font-size:var(--slide-h4-size,1em)}h5{font-size:var(--slide-h5-size,.9em)}p{margin:.65em 0}ul,ol{margin:.7em 0;padding-left:1.4em}li{margin:.35em 0}img{display:block;max-width:100%%;max-height:340px;object-fit:contain;margin:16px auto}pre{font-size:.68em;line-height:1.5;overflow:hidden;padding:20px;background:#8497b522;border-radius:8px}table{border-collapse:collapse;width:100%%;font-size:.8em}td,th{border-bottom:1px solid #8497b566;padding:.35em .5em;text-align:left}.slide-columns{display:grid;grid-template-columns:1fr 1fr;gap:40px;height:100%%}.export-slide[data-layout=cover] .slide-content{display:flex;flex-direction:column;justify-content:center;text-align:center}.export-slide[data-layout=image] .slide-content{display:flex;flex-direction:column}.export-slide[data-layout=image] .slide-content>p:has(img){flex:1;min-height:0;margin:0;display:flex;align-items:center;justify-content:center}.export-slide[data-layout=image] img{max-height:100%%;height:100%%;margin:0}.slide-page-number{position:absolute;z-index:4;font:14px/1.2 "Segoe UI",sans-serif;opacity:.7}.slide-page-number[data-position=top-left]{top:18px;left:24px}.slide-page-number[data-position=top-center]{top:18px;left:50%%;transform:translateX(-50%%)}.slide-page-number[data-position=top-right]{top:18px;right:24px}.slide-page-number[data-position=bottom-left]{bottom:18px;left:24px}.slide-page-number[data-position=bottom-center]{bottom:18px;left:50%%;transform:translateX(-50%%)}.slide-page-number[data-position=bottom-right]{bottom:18px;right:24px}.math-render{display:flex;justify-content:center;overflow:hidden;margin:.7em 0}.math-render math{font-size:1.2em}@media(max-width:1000px){body{padding:0}.export-slide{width:100vw;height:auto;aspect-ratio:%s;margin:0 0 16px}}@media print{@page{size:%s 7.5in;margin:0}body{padding:0;background:#fff}.export-slide{width:100vw;height:100vh;margin:0;box-shadow:none;break-after:page}.export-slide:last-child{break-after:auto}}`, deck.MarginColor, height, strings.ReplaceAll(deck.Aspect, ":", "/"), pageWidth)
 	html := "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + stdhtml.EscapeString(title) + "</title><style>" + css + "</style></head><body>" + body.String() + "</body></html>"
 	return []byte(html), nil
 }
@@ -349,6 +349,136 @@ func exportNodeText(node *xhtml.Node) string {
 	}
 	walk(node)
 	return output.String()
+}
+
+func exportMathCode(code *xhtml.Node) bool {
+	if code == nil || code.Type != xhtml.ElementNode || code.Data != "code" {
+		return false
+	}
+	className, _ := htmlAttribute(code, "class")
+	for _, class := range strings.Fields(className) {
+		switch class {
+		case "language-math", "language-tex", "language-latex":
+			return true
+		}
+	}
+	return false
+}
+
+func exportMathElement(markup string) (*xhtml.Node, error) {
+	root, err := xhtml.Parse(strings.NewReader("<!doctype html><html><body><div class=\"math-render math-display\">" + markup + "</div></body></html>"))
+	if err != nil {
+		return nil, err
+	}
+	var result *xhtml.Node
+	var walk func(*xhtml.Node)
+	walk = func(node *xhtml.Node) {
+		if result == nil && node.Type == xhtml.ElementNode && node.Data == "div" {
+			if className, _ := htmlAttribute(node, "class"); strings.Contains(className, "math-render") {
+				result = node
+				return
+			}
+		}
+		for child := node.FirstChild; child != nil && result == nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(root)
+	if result == nil {
+		return nil, fmt.Errorf("MathML要素を生成できません")
+	}
+	if parent := result.Parent; parent != nil {
+		parent.RemoveChild(result)
+	}
+	return result, nil
+}
+
+func exportElementOnlyText(node *xhtml.Node) bool {
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if child.Type == xhtml.ElementNode {
+			return false
+		}
+	}
+	return true
+}
+
+func enhanceExportMath(data []byte, cfg settings.Settings) ([]byte, error) {
+	root, err := xhtml.Parse(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	var blocks []*xhtml.Node
+	var paragraphs []*xhtml.Node
+	var walk func(*xhtml.Node)
+	walk = func(node *xhtml.Node) {
+		if node.Type == xhtml.ElementNode && node.Data == "pre" {
+			for child := node.FirstChild; child != nil; child = child.NextSibling {
+				if exportMathCode(child) {
+					blocks = append(blocks, node)
+					break
+				}
+			}
+		}
+		if node.Type == xhtml.ElementNode && node.Data == "p" && exportElementOnlyText(node) {
+			raw := strings.TrimSpace(exportNodeText(node))
+			if len(raw) > 4 && strings.HasPrefix(raw, "$") && strings.HasSuffix(raw, "$") {
+				paragraphs = append(paragraphs, node)
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(root)
+	for _, pre := range blocks {
+		var code *xhtml.Node
+		for child := pre.FirstChild; child != nil; child = child.NextSibling {
+			if exportMathCode(child) {
+				code = child
+				break
+			}
+		}
+		if code == nil {
+			continue
+		}
+		markup, renderErr := renderMath(exportNodeText(code), true, cfg)
+		if renderErr != nil {
+			setHTMLAttribute(pre, "title", renderErr.Error())
+			setHTMLAttribute(pre, "data-math-error", "true")
+			continue
+		}
+		element, parseErr := exportMathElement(markup)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		if parent := pre.Parent; parent != nil {
+			parent.InsertBefore(element, pre)
+			parent.RemoveChild(pre)
+		}
+	}
+	for _, paragraph := range paragraphs {
+		raw := strings.TrimSpace(exportNodeText(paragraph))
+		source := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "$"), "$"))
+		markup, renderErr := renderMath(source, true, cfg)
+		if renderErr != nil {
+			setHTMLAttribute(paragraph, "title", renderErr.Error())
+			setHTMLAttribute(paragraph, "data-math-error", "true")
+			continue
+		}
+		element, parseErr := exportMathElement(markup)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		if parent := paragraph.Parent; parent != nil {
+			parent.InsertBefore(element, paragraph)
+			parent.RemoveChild(paragraph)
+		}
+	}
+	var output bytes.Buffer
+	if err := xhtml.Render(&output, root); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
 }
 
 func enhanceExportDiagrams(data []byte, cfg settings.Settings) ([]byte, error) {
@@ -498,6 +628,10 @@ func (a *App) Export(format string) (bool, error) {
 		return false, err
 	}
 	data, err = enhanceExportDiagrams(data, cfg)
+	if err != nil {
+		return false, err
+	}
+	data, err = enhanceExportMath(data, cfg)
 	if err != nil {
 		return false, err
 	}
