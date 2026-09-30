@@ -309,6 +309,7 @@ export class WysiwygEditor {
 			checkbox.disabled = false;
 			checkbox.contentEditable = 'false';
 		}
+		for (const managed of doc.querySelectorAll<HTMLElement>('.hatonote-references,sup[data-hatonote-citation]')) managed.contentEditable = 'false';
 		this.commanding = true;
 		this.content.innerHTML = doc.body.innerHTML || '<p><br></p>';
 		this.commanding = false;
