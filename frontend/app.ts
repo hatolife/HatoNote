@@ -20,6 +20,7 @@ interface SlidesInfo { deck: SlideDeck; revision: string; canUndo: boolean; canR
 interface Dependency {name:string;found:boolean;path:string;message:string}
 interface MarkdownHeading { id: string; text: string; level: number }
 interface SearchResult { page: string; line: number; start: number; end: number; text: string }
+interface PageTemplate { id: string; title: string }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
 interface Backend {
 	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>;
@@ -31,7 +32,7 @@ interface Backend {
 	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
-	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
+	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; OpenDataFolder(): Promise<void>;
@@ -1024,12 +1025,31 @@ for (const layout of ['editor','split','preview'] as PaneLayout[]) element(paneB
 	updatePaneLayout();
 };
 const dialog = element<HTMLDialogElement>('page-dialog');
-element('add-page').onclick = () => showAppDialog(dialog);
+const pageTemplateSelect = element<HTMLSelectElement>('page-template');
+let pageTemplatesLoaded = false;
+async function loadPageTemplates(): Promise<void> {
+	if (pageTemplatesLoaded) return;
+	const templates = await api.PageTemplates();
+	pageTemplateSelect.replaceChildren();
+	for (const template of templates) {
+		const option = document.createElement('option');
+		option.value = template.id;
+		option.textContent = template.title;
+		pageTemplateSelect.append(option);
+	}
+	pageTemplatesLoaded = true;
+}
+element('add-page').onclick = () => {
+	element<HTMLInputElement>('page-name').value = '';
+	void loadPageTemplates().catch(error => status(String(error), true));
+	showAppDialog(dialog);
+};
 dialog.addEventListener('close', () => {
 	if (dialog.returnValue !== 'add') return;
 	let name = element<HTMLInputElement>('page-name').value.trim();
 	if(name && !name.endsWith('/') && !name.split('/').pop()!.includes('.')) name += '.md';
-	void action(async () => { await flush(); await api.AddPage(name); await selectPage(name); status('ページを追加しました'); });
+	const templateID = pageTemplateSelect.value || 'blank';
+	void action(async () => { await flush(); await api.AddPageFromTemplate(name, templateID); await selectPage(name); status('テンプレートからページを追加しました'); });
 });
 async function convertDocumentType(target: 'slides' | 'mdz'): Promise<void> {
 	if (!editing) return;
