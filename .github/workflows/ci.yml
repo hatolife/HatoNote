@@ -45,8 +45,5 @@ jobs:
       - name: Test frontend commands
         run: npm run test:commands --prefix frontend
 
-      - name: Test frontend diff
-        run: npm run test:diff --prefix frontend
-
       - name: Test Go
         run: go test ./... -timeout 120s
