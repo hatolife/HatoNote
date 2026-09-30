@@ -22,6 +22,7 @@ interface MarkdownHeading { id: string; text: string; level: number }
 interface SearchResult { page: string; line: number; start: number; end: number; text: string }
 interface PageTemplate { id: string; title: string }
 interface MarkdownDiagnostic { line: number; rule: string; message: string }
+interface MacroDefinition { id: string; name: string; commands: string[] }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
 interface Backend {
 	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>;
@@ -46,6 +47,10 @@ interface Backend {
 declare global { interface Window { go: { main: { App: Backend } }; runtime: { OnFileDrop(callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean): void; ResolveFilePaths?(x: number, y: number, files: File[]): void; EventsOn(event: string, callback: (...args: any[]) => void): void; BrowserOpenURL(url: string): void; WindowMinimise?(): void; WindowToggleMaximise?(): void; Quit?(): void; WindowFullscreen?(): void; WindowUnfullscreen?(): void; WindowIsFullscreen?(): Promise<boolean> } } }
 const api = window.go.main.App;
 const commands = new CommandRegistry();
+const macroStorageKey = 'hatonote.macros.v1';
+let macroRecording: string[] | undefined;
+let macroRecordingName = '';
+let macroPlaying = false;
 const recentDocumentsKey = 'hatonote.recentDocuments';
 const element = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const dialogBackdrop = element<HTMLElement>('dialog-backdrop');
@@ -151,7 +156,13 @@ const wysiwyg = new WysiwygEditor(wysiwygRoot, wysiwygContent, wysiwygToolbar, w
 });
 
 function status(message: string, error = false): void { element('status').textContent = message; element('status').title = message; element('status').classList.toggle('error', error); }
-function runCommand(id: string): void { void commands.execute(id).catch(error => status(String(error), true)); }
+function runCommand(id: string): void {
+	if (macroRecording && !macroPlaying && !id.startsWith('macro.')) {
+		if (macroRecording.length < 100) macroRecording.push(id);
+		else status('マクロは100コマンドまでです', true);
+	}
+	void commands.execute(id).catch(error => status(String(error), true));
+}
 function loadRecentDocuments(): string[] {
 	try {
 		const value = JSON.parse(localStorage.getItem(recentDocumentsKey) || '[]');
@@ -1331,6 +1342,125 @@ element('create-named-version').onclick = () => void action(async () => {
 });
 element('history').onclick = () => runCommand('document.history');
 element('export').onclick = () => showAppDialog(element<HTMLDialogElement>('export-dialog'));
+
+const macroDialog = element<HTMLDialogElement>('macro-dialog');
+const macroNameInput = element<HTMLInputElement>('macro-name');
+const macroList = element<HTMLElement>('macro-list');
+const macroRecordingState = element<HTMLElement>('macro-recording-state');
+function loadMacros(): MacroDefinition[] {
+	try {
+		const raw = JSON.parse(localStorage.getItem(macroStorageKey) || '[]');
+		if (!Array.isArray(raw)) return [];
+		return raw.filter(item => item && typeof item.id === 'string' && typeof item.name === 'string' && Array.isArray(item.commands))
+			.map(item => ({id:item.id,name:item.name,commands:item.commands.filter((id:unknown) => typeof id === 'string').slice(0,100)}))
+			.slice(0,100);
+	} catch {
+		return [];
+	}
+}
+function saveMacros(macros: MacroDefinition[]): void {
+	localStorage.setItem(macroStorageKey, JSON.stringify(macros.slice(0,100)));
+}
+function renderMacroManager(): void {
+	const macros = loadMacros();
+	macroRecordingState.textContent = macroRecording ? `記録中: ${macroRecordingName}（${macroRecording.length}コマンド）` : '記録停止中';
+	element<HTMLButtonElement>('macro-record-start').hidden = !!macroRecording;
+	element<HTMLButtonElement>('macro-record-stop').hidden = !macroRecording;
+	macroList.replaceChildren();
+	if (!macros.length) {
+		const empty = document.createElement('p');
+		empty.className = 'macro-empty';
+		empty.textContent = '保存済みマクロはありません。';
+		macroList.append(empty);
+		return;
+	}
+	for (const macro of macros) {
+		const row = document.createElement('div');
+		row.className = 'macro-entry';
+		const info = document.createElement('div');
+		const name = document.createElement('strong');
+		name.textContent = macro.name;
+		const meta = document.createElement('small');
+		meta.textContent = `${macro.commands.length}コマンド`;
+		info.append(name,meta);
+		const actions = document.createElement('div');
+		const play = document.createElement('button');
+		play.type = 'button';
+		play.textContent = '実行';
+		play.disabled = macroPlaying || !!macroRecording;
+		play.onclick = () => void playMacro(macro);
+		const remove = document.createElement('button');
+		remove.type = 'button';
+		remove.textContent = '削除';
+		remove.disabled = macroPlaying || !!macroRecording;
+		remove.onclick = () => {
+			saveMacros(loadMacros().filter(item => item.id !== macro.id));
+			renderMacroManager();
+		};
+		actions.append(play,remove);
+		row.append(info,actions);
+		macroList.append(row);
+	}
+}
+function showMacroManager(): void {
+	renderMacroManager();
+	showAppDialog(macroDialog);
+	requestAnimationFrame(() => (macroRecording ? element<HTMLButtonElement>('macro-record-stop') : macroNameInput).focus());
+}
+async function waitForCommandDialog(): Promise<void> {
+	const dialog = activeAppDialog;
+	if (!dialog?.open) return;
+	await new Promise<void>(resolve => dialog.addEventListener('close', () => resolve(), {once:true}));
+}
+async function playMacro(macro: MacroDefinition): Promise<void> {
+	if (macroPlaying || macroRecording) return;
+	macroDialog.close();
+	macroPlaying = true;
+	status(`マクロ「${macro.name}」を実行中`);
+	try {
+		for (const id of macro.commands) {
+			await commands.execute(id);
+			await waitForCommandDialog();
+		}
+		status(`マクロ「${macro.name}」を実行しました`);
+	} catch (error) {
+		status(`マクロ「${macro.name}」を停止しました: ${String(error)}`, true);
+	} finally {
+		macroPlaying = false;
+	}
+}
+element('macro-record-start').onclick = () => {
+	const name = macroNameInput.value.trim();
+	if (!name) {
+		macroNameInput.focus();
+		status('マクロ名を入力してください', true);
+		return;
+	}
+	macroRecordingName = name;
+	macroRecording = [];
+	macroDialog.close();
+	status(`マクロ「${name}」を記録中`);
+};
+element('macro-record-stop').onclick = () => {
+	if (!macroRecording) return;
+	const recorded = macroRecording;
+	const name = macroRecordingName;
+	macroRecording = undefined;
+	macroRecordingName = '';
+	if (!recorded.length) {
+		status('コマンドが記録されていないためマクロを保存しませんでした');
+		renderMacroManager();
+		return;
+	}
+	const macros = loadMacros();
+	macros.unshift({id:crypto.randomUUID(),name,commands:recorded.slice(0,100)});
+	saveMacros(macros);
+	macroNameInput.value = '';
+	renderMacroManager();
+	status(`マクロ「${name}」を保存しました`);
+};
+element('macro').onclick = () => runCommand('macro.manage');
+commands.register({id:'macro.manage', title:'マクロ管理', execute:showMacroManager});
 
 commands.register({id:'document.new', title:'新規文書', execute:()=>showAppDialog(newDialog)});
 commands.register({id:'document.open', title:'文書を開く', shortcut:'Ctrl+O', execute:()=>action(async()=>{await flush(); if(await api.Open('')) await reload();})});
