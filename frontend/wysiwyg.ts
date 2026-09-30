@@ -226,6 +226,7 @@ export class WysiwygEditor {
 	private markdown = '';
 	private beforeInput = '';
 	private commanding = false;
+	private savedRange: Range | null = null;
 	private tableTools: HTMLElement | null = null;
 	private colorInput: HTMLInputElement | null = null;
 	private fontSizeSelect: HTMLSelectElement | null = null;
@@ -284,7 +285,10 @@ export class WysiwygEditor {
 		this.content.addEventListener('mouseup', updateTable);
 		this.content.addEventListener('click', updateTable);
 		document.addEventListener('selectionchange', () => {
-			if (!this.root.hidden && this.contains(document.getSelection()?.anchorNode || null)) this.updateTableTools();
+			if (this.root.hidden) return;
+			const selection = document.getSelection();
+			if (selection?.rangeCount && this.contains(selection.anchorNode)) this.savedRange = selection.getRangeAt(0).cloneRange();
+			if (this.contains(selection?.anchorNode || null)) this.updateTableTools();
 		});
 	}
 
@@ -325,6 +329,11 @@ export class WysiwygEditor {
 
 	contains(node: EventTarget | null): boolean {
 		return node instanceof Node && this.root.contains(node);
+	}
+
+	rememberSelection(): void {
+		const selection = window.getSelection();
+		if (selection?.rangeCount && this.content.contains(selection.anchorNode)) this.savedRange = selection.getRangeAt(0).cloneRange();
 	}
 
 	get scrollTop(): number { return this.content.scrollTop; }
@@ -369,8 +378,12 @@ export class WysiwygEditor {
 
 	private selectionRange(): Range | null {
 		const selection = window.getSelection();
-		if (!selection || !selection.rangeCount || !this.content.contains(selection.anchorNode)) return null;
-		return selection.getRangeAt(0);
+		if (selection?.rangeCount && this.content.contains(selection.anchorNode)) {
+			this.savedRange = selection.getRangeAt(0).cloneRange();
+			return selection.getRangeAt(0);
+		}
+		if (this.savedRange && this.content.contains(this.savedRange.commonAncestorContainer)) return this.savedRange.cloneRange();
+		return null;
 	}
 
 	private insertNode(node: Node, selectContents = false): void {
@@ -389,6 +402,7 @@ export class WysiwygEditor {
 		if (selectContents && node instanceof HTMLElement) range.selectNodeContents(node);
 		selection?.removeAllRanges();
 		selection?.addRange(range);
+		this.savedRange = range.cloneRange();
 	}
 
 	private insertTable(): void {
