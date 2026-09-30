@@ -25,6 +25,7 @@ interface ReferenceItem { id: string; title: string; url: string; note: string }
 interface ReferenceSet { version: number; items: ReferenceItem[] }
 interface PageTemplate { id: string; title: string }
 interface DocumentTemplate { id: string; kind: string; title: string }
+interface UserTemplate { id: string; scope: 'page' | 'document'; kind: 'mdz'; title: string; content: string }
 interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
@@ -40,7 +41,7 @@ interface Backend {
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; RenderMath(source:string, display:boolean): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
-	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
+	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>; UserTemplates(): Promise<UserTemplate[]>; SaveUserTemplate(template: UserTemplate): Promise<UserTemplate>; DeleteUserTemplate(id: string): Promise<void>;
 	References(): Promise<ReferenceSet>; SaveReference(reference: ReferenceItem): Promise<ReferenceItem>; DeleteReference(id: string): Promise<void>; ApplyReferences(page: string): Promise<string>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; ChooseMermaid(): Promise<string>; ChooseJava(): Promise<string>; ChoosePlantUMLJar(): Promise<string>; ChooseKatex(): Promise<string>; OpenDataFolder(): Promise<void>;
 	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; HistoryDiff(id: string): Promise<HistoryPageDiff[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
@@ -1405,6 +1406,67 @@ element('reference-apply').onclick = () => void action(async () => {
 });
 element('reference-close').onclick = () => referenceDialog.close();
 
+let userTemplates: UserTemplate[] = [];
+let selectedUserTemplateID = '';
+
+function resetUserTemplateEditor(scope: 'page' | 'document' = 'page'): void {
+	selectedUserTemplateID = '';
+	element<HTMLSelectElement>('user-template-scope').value = scope;
+	element<HTMLInputElement>('user-template-title').value = '';
+	element<HTMLTextAreaElement>('user-template-content').value = scope === 'page' ? '# 新しいページ\n' : '# 新しい文書\n';
+	element<HTMLButtonElement>('user-template-delete').hidden = true;
+	element('user-template-error').textContent = '';
+}
+
+function editUserTemplate(template: UserTemplate): void {
+	selectedUserTemplateID = template.id;
+	element<HTMLSelectElement>('user-template-scope').value = template.scope;
+	element<HTMLInputElement>('user-template-title').value = template.title;
+	element<HTMLTextAreaElement>('user-template-content').value = template.content;
+	element<HTMLButtonElement>('user-template-delete').hidden = false;
+	element('user-template-error').textContent = '';
+}
+
+function renderUserTemplateList(): void {
+	const list = element('user-template-list');
+	list.replaceChildren();
+	if (!userTemplates.length) {
+		const empty = document.createElement('p');
+		empty.className = 'user-template-empty';
+		empty.textContent = 'ユーザー定義テンプレートはありません。';
+		list.append(empty);
+		return;
+	}
+	for (const template of userTemplates) {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'user-template-item';
+		button.classList.toggle('selected', template.id === selectedUserTemplateID);
+		const title = document.createElement('strong');
+		title.textContent = template.title;
+		const meta = document.createElement('span');
+		meta.textContent = template.scope === 'page' ? 'ページ' : '文書';
+		button.append(title, meta);
+		button.onclick = () => { editUserTemplate(template); renderUserTemplateList(); };
+		list.append(button);
+	}
+}
+
+async function refreshUserTemplates(selectID = ''): Promise<void> {
+	userTemplates = await api.UserTemplates();
+	if (selectID) {
+		const selected = userTemplates.find(template => template.id === selectID);
+		if (selected) editUserTemplate(selected);
+	}
+	renderUserTemplateList();
+}
+
+async function refreshTemplateChoices(): Promise<void> {
+	pageTemplatesLoaded = false;
+	documentTemplatesLoaded = false;
+	await Promise.all([loadPageTemplates(), loadDocumentTemplates()]);
+}
+
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
 const cheatsheetDialog = element<HTMLDialogElement>('markdown-cheatsheet-dialog');
 function showMarkdownCheatsheet(): void {
@@ -1424,7 +1486,7 @@ function showSettings(): void {
 		if (!control) continue;
 		if (typeof value === 'boolean') (control as HTMLInputElement).checked = value; else control.value = String(value);
 	}
-	showAppDialog(settingsDialog);void checkDependencies();void checkDiagramDependencies();
+	showAppDialog(settingsDialog);void checkDependencies();void checkDiagramDependencies();void refreshUserTemplates().catch(error=>{element('user-template-error').textContent=String(error);});
 }
 element('markdown-cheatsheet').onclick = () => runCommand('help.markdownCheatsheet');
 element('settings').onclick = () => runCommand('app.settings');
@@ -1468,6 +1530,43 @@ element<HTMLInputElement>('init-path').addEventListener('input', event => {
 		settingsDialog.querySelector<HTMLSelectElement>('[name="initMode"]')!.value = 'custom';
 	}
 });
+element('user-template-new-page').onclick = () => { resetUserTemplateEditor('page'); renderUserTemplateList(); };
+element('user-template-new-document').onclick = () => { resetUserTemplateEditor('document'); renderUserTemplateList(); };
+element('user-template-save').onclick = () => void action(async () => {
+	const template: UserTemplate = {
+		id: selectedUserTemplateID,
+		scope: element<HTMLSelectElement>('user-template-scope').value as 'page' | 'document',
+		kind: 'mdz',
+		title: element<HTMLInputElement>('user-template-title').value.trim(),
+		content: element<HTMLTextAreaElement>('user-template-content').value,
+	};
+	try {
+		const saved = await api.SaveUserTemplate(template);
+		selectedUserTemplateID = saved.id;
+		await refreshUserTemplates(saved.id);
+		await refreshTemplateChoices();
+		status('テンプレートを保存しました');
+	} catch (error) {
+		element('user-template-error').textContent = String(error);
+		throw error;
+	}
+});
+element('user-template-delete').onclick = () => void action(async () => {
+	if (!selectedUserTemplateID) return;
+	const template = userTemplates.find(item => item.id === selectedUserTemplateID);
+	if (!confirm(`テンプレート「${template?.title || selectedUserTemplateID}」を削除しますか？`)) return;
+	try {
+		await api.DeleteUserTemplate(selectedUserTemplateID);
+		resetUserTemplateEditor();
+		await refreshUserTemplates();
+		await refreshTemplateChoices();
+		status('テンプレートを削除しました');
+	} catch (error) {
+		element('user-template-error').textContent = String(error);
+		throw error;
+	}
+});
+
 element('settings-save').onclick = () => {
 	if (!element<HTMLFormElement>('settings-form').reportValidity()) return;
 	const next = { ...cfg };
