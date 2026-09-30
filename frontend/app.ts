@@ -10,7 +10,7 @@ interface Snapshot { filename: string; entry: string; pages: string[]; assets: s
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
 interface BookContents { revision: string; entries: TocEntry[]; unlisted: string[]; canUndo: boolean; canRedo: boolean }
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
-interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number }
+interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: EditorEngine; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number; formatTrimTrailingWhitespace: boolean; formatMaxBlankLines: number; formatFinalNewline: boolean; lintTrailingWhitespace: boolean; lintLongLines: boolean; lintMaxLineLength: number; lintHeadingStep: boolean; lintFinalNewline: boolean }
 interface Recovery { id: string; filename: string; updated: string }
 interface HistoryEntry { id: string; name: string; kind: 'backup' | 'named'; created: string; size: number }
 interface HistoryPageDiff { page: string; status: 'added' | 'deleted' | 'modified'; history: string; current: string }
@@ -21,6 +21,7 @@ interface Dependency {name:string;found:boolean;path:string;message:string}
 interface MarkdownHeading { id: string; text: string; level: number }
 interface SearchResult { page: string; line: number; start: number; end: number; text: string }
 interface PageTemplate { id: string; title: string }
+interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
 interface Backend {
 	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>;
@@ -33,7 +34,7 @@ interface Backend {
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
-	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>;
+	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; OpenDataFolder(): Promise<void>;
 	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; HistoryDiff(id: string): Promise<HistoryPageDiff[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
@@ -575,6 +576,8 @@ function updateEditing(): void {
 	if (wysiwygButton) wysiwygButton.hidden = !supportsWysiwyg();
 	element('slide-typography').hidden = !editing || !documentIs('slides');
 	element('markdown-cheatsheet').hidden = !editing;
+	element('format-markdown').hidden = !editing;
+	element('lint-markdown').hidden = !editing;
 	updateSlideDebugToggle();
 	element('slide-overflow-actions').hidden = !editing;
 	for (const id of ['undo','redo','edit-mode','split-mode','view-mode','add-page','image']) {
@@ -1337,6 +1340,79 @@ commands.register({id:'document.search', title:'文書内検索', shortcut:'Ctrl
 commands.register({id:'document.history', title:'バックアップ履歴', enabled:()=>!!state?.filename, execute:showHistory});
 commands.register({id:'export.html', title:'単一HTMLへエクスポート', enabled:()=>!!state?.id, execute:()=>exportDocument('html')});
 commands.register({id:'export.pdf', title:'PDFへエクスポート', enabled:()=>!!state?.id, execute:()=>exportDocument('pdf')});
+const lintDialog = element<HTMLDialogElement>('lint-dialog');
+const lintResults = element<HTMLElement>('lint-results');
+async function formatCurrentMarkdown(): Promise<void> {
+	if (!editing || !state?.id) return;
+	await action(async () => {
+		if (activeEngine === 'neovim') {
+			await api.FormatNativeMarkdown();
+			const value = await api.NativePoll();
+			current = value.name;
+			editor.value = value.text;
+			nativeCanUndo = value.canUndo;
+			nativeCanRedo = value.canRedo;
+			state.dirty = true;
+			refreshTitle();
+			await refreshSidebar();
+			await render();
+			updateUndoRedo();
+			status('Markdownを整形しました');
+			return;
+		}
+		const beforeText = editor.value;
+		const formatted = await api.FormatMarkdown(beforeText);
+		if (formatted === beforeText) {
+			status('整形する変更はありません');
+			return;
+		}
+		const before = {text:beforeText,start:editor.selectionStart,end:editor.selectionEnd};
+		editor.value = formatted;
+		const end = Math.min(formatted.length, before.end);
+		history().record(before, {text:formatted,start:end,end:end}, 'formatMarkdown');
+		if (activeEngine === 'wysiwyg') {
+			if (!(await loadWysiwyg())) {
+				activeEngine = 'builtin';
+				applyEditor();
+			}
+		} else {
+			editor.setSelectionRange(end,end);
+		}
+		edited();
+		await render();
+		updateUndoRedo();
+		status('Markdownを整形しました');
+	});
+}
+async function lintCurrentMarkdown(): Promise<void> {
+	if (!editing || !state?.id) return;
+	const diagnostics = activeEngine === 'neovim' ? await api.LintNativeMarkdown() : await api.LintMarkdown(editor.value);
+	lintResults.replaceChildren();
+	if (!diagnostics.length) {
+		const empty = document.createElement('p');
+		empty.className = 'lint-empty';
+		empty.textContent = '問題は見つかりませんでした。';
+		lintResults.append(empty);
+	} else {
+		for (const diagnostic of diagnostics) {
+			const row = document.createElement('div');
+			row.className = 'lint-result';
+			const where = document.createElement('strong');
+			where.textContent = `L${diagnostic.line} · ${diagnostic.rule}`;
+			const message = document.createElement('span');
+			message.textContent = diagnostic.message;
+			row.append(where,message);
+			lintResults.append(row);
+		}
+	}
+	element('lint-summary').textContent = diagnostics.length ? `${diagnostics.length.toLocaleString()}件` : '0件';
+	showAppDialog(lintDialog);
+}
+element('format-markdown').onclick = () => runCommand('markdown.format');
+element('lint-markdown').onclick = () => runCommand('markdown.lint');
+commands.register({id:'markdown.format', title:'Markdownを整形', enabled:()=>editing && !!state?.id, execute:formatCurrentMarkdown});
+commands.register({id:'markdown.lint', title:'MarkdownをLint', enabled:()=>editing && !!state?.id, execute:lintCurrentMarkdown});
+
 commands.register({id:'help.markdownCheatsheet', title:'Markdown早見表', shortcut:'Ctrl+/', enabled:()=>editing, execute:showMarkdownCheatsheet});
 commands.register({id:'app.settings', title:'設定', execute:showSettings});
 
