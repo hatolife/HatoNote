@@ -98,6 +98,25 @@
 <button id="check-diagram-dependencies" type="button">図表依存を再確認</button>
 <p>Mermaidはmmdc、PlantUMLはJavaとplantuml.jar、数式はKaTeX CLIを使用します。利用できない場合は元のコードや数式表記をそのまま表示します。</p>
 </fieldset>
+<fieldset class="user-template-settings"><legend>テンプレート</legend>
+<p>通常MDZで使うページテンプレートと文書テンプレートを登録できます。内蔵テンプレートは変更されません。</p>
+<div class="user-template-manager">
+<div id="user-template-list" class="user-template-list"></div>
+<div class="user-template-editor">
+<div class="template-inline-fields">
+<label>対象<select id="user-template-scope"><option value="page">ページ</option><option value="document">文書</option></select></label>
+<label>名前<input id="user-template-title" maxlength="100" placeholder="テンプレート名"></label>
+</div>
+<label>Markdown本文<textarea id="user-template-content" rows="12" maxlength="1048576" spellcheck="false"></textarea></label>
+<p id="user-template-error" role="alert"></p>
+<div class="template-manager-actions">
+<button type="button" id="user-template-new">新規</button>
+<button type="button" id="user-template-delete" disabled>削除</button>
+<button type="button" id="user-template-save" class="primary">テンプレートを保存</button>
+</div>
+</div>
+</div>
+</fieldset>
 <fieldset><legend>保存と復旧</legend>
 <label class="check"><input name="autoSave" type="checkbox">開いている文書を定期的に自動保存</label>
 <label>保存間隔（秒）<input name="autoSaveSeconds" type="number" min="5" max="86400" required></label>
