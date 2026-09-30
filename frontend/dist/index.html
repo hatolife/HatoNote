@@ -60,6 +60,19 @@
 <label>文書内の保存先<input name="imageDirectory" required placeholder="images"></label>
 <label>ファイル名（拡張子は自動）<input name="imageName" required placeholder="{date}-{time}-{counter}"></label><p>{date}＝年月日、{time}＝時分秒、{counter}＝連番。同名の画像は上書きしません。Undo後も画像本体は保持します。</p>
 </fieldset>
+<fieldset><legend>Markdown品質</legend>
+<h3>Formatter</h3>
+<label class="check"><input name="formatTrimTrailingWhitespace" type="checkbox">コードフェンス外の行末空白を削除</label>
+<label>連続空行の上限<input name="formatMaxBlankLines" type="number" min="0" max="10" required></label>
+<label class="check"><input name="formatFinalNewline" type="checkbox">ファイル末尾に改行を付ける</label>
+<h3>Lint</h3>
+<label class="check"><input name="lintTrailingWhitespace" type="checkbox">行末空白を検出</label>
+<label class="check"><input name="lintLongLines" type="checkbox">長すぎる行を検出</label>
+<label>最大行長<input name="lintMaxLineLength" type="number" min="40" max="1000" required></label>
+<label class="check"><input name="lintHeadingStep" type="checkbox">見出しレベルの飛びを検出</label>
+<label class="check"><input name="lintFinalNewline" type="checkbox">末尾改行の欠落を検出</label>
+<p>FormatterとLintはコードフェンス内の本文を変更・検査対象にしません。</p>
+</fieldset>
 <fieldset><legend>保存と復旧</legend>
 <label class="check"><input name="autoSave" type="checkbox">開いている文書を定期的に自動保存</label>
 <label>保存間隔（秒）<input name="autoSaveSeconds" type="number" min="5" max="86400" required></label>
