@@ -50,3 +50,23 @@ func TestCheckDiagramDependenciesReportsMissingTools(t *testing.T) {
 		}
 	}
 }
+
+
+func TestResolveDiagramExecutableRequiresExecutableBit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission semantics")
+	}
+	file := filepath.Join(t.TempDir(), "renderer")
+	if err := os.WriteFile(file, []byte("#!/bin/sh\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveDiagramExecutable(file, "missing"); got != "" {
+		t.Fatalf("non-executable file accepted: %q", got)
+	}
+	if err := os.Chmod(file, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveDiagramExecutable(file, "missing"); got == "" {
+		t.Fatal("executable file rejected")
+	}
+}
