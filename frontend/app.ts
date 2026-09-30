@@ -603,13 +603,16 @@ function updateEditing(): void {
 	native.setActive(editing && activeEngine === 'neovim');
 	updateUndoRedo();
 }
-element('editing').onclick = () => void action(async () => {
-	await flush();
-	if (editing) { await api.EndEditing(); editing = false; tocEditing=false; }
-	else { editing = true; activeEngine = initialEditorEngine(); if (activeEngine === 'neovim') await api.StartNative(); }
-	state = await api.State();
-	updateEditing(); await refreshSidebar(); applyEditor(); await selectPage(current); native.resize();
-});
+async function toggleEditing(): Promise<void> {
+	await action(async () => {
+		await flush();
+		if (editing) { await api.EndEditing(); editing = false; tocEditing=false; }
+		else { editing = true; activeEngine = initialEditorEngine(); if (activeEngine === 'neovim') await api.StartNative(); }
+		state = await api.State();
+		updateEditing(); await refreshSidebar(); applyEditor(); await selectPage(current); native.resize();
+	});
+}
+element('editing').onclick = () => runCommand('view.toggleEditing');
 for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-engine]')) button.onclick = () => {
 	const requested = button.dataset.engine as EditorEngine;
 	void action(async () => {
@@ -1037,14 +1040,17 @@ async function insertImage(name: string): Promise<void> {
 	else insertText(text);
 	await refreshSidebar(); await render();
 }
-element('duplicate-page').onclick = () => void action(async () => {
-	await flush();
-	if (!current) return;
-	const duplicated = await api.DuplicatePage(current);
-	await refreshSidebar();
-	await selectPage(duplicated);
-	status('ページを複製しました');
-});
+async function duplicateCurrentPage(): Promise<void> {
+	await action(async () => {
+		await flush();
+		if (!current) return;
+		const duplicated = await api.DuplicatePage(current);
+		await refreshSidebar();
+		await selectPage(duplicated);
+		status('ページを複製しました');
+	});
+}
+element('duplicate-page').onclick = () => runCommand('page.duplicate');
 element('image').onclick = () => void action(async () => { await insertImage(await api.AddImage()); });
 async function clipboardImage(file: File): Promise<void> {
 	if (file.size > 32 * 1024 * 1024) throw new Error('画像は32MiB以下にしてください');
@@ -1067,10 +1073,12 @@ for (const target of [editor, nativeInput, wysiwygContent]) target.addEventListe
 		document.execCommand('insertText', false, event.clipboardData?.getData('text/plain') || '');
 	}
 });
-for (const layout of ['editor','split','preview'] as PaneLayout[]) element(paneButton[layout]).onclick = () => {
+function setPaneLayout(layout: PaneLayout): void {
+	if (!editing) return;
 	paneLayout = layout;
 	updatePaneLayout();
-};
+}
+for (const layout of ['editor','split','preview'] as PaneLayout[]) element(paneButton[layout]).onclick = () => runCommand(`view.layout.${layout}`);
 const dialog = element<HTMLDialogElement>('page-dialog');
 const pageTemplateSelect = element<HTMLSelectElement>('page-template');
 let pageTemplatesLoaded = false;
@@ -1086,11 +1094,12 @@ async function loadPageTemplates(): Promise<void> {
 	}
 	pageTemplatesLoaded = true;
 }
-element('add-page').onclick = () => {
+function showPageDialog(): void {
 	element<HTMLInputElement>('page-name').value = '';
 	void loadPageTemplates().catch(error => status(String(error), true));
 	showAppDialog(dialog);
-};
+}
+element('add-page').onclick = () => runCommand('page.add');
 dialog.addEventListener('close', () => {
 	if (dialog.returnValue !== 'add') return;
 	let name = element<HTMLInputElement>('page-name').value.trim();
@@ -1573,6 +1582,13 @@ element('macro').onclick = () => runCommand('macro.manage');
 commands.register({id:'macro.manage', title:'マクロ管理', execute:showMacroManager});
 
 commands.register({id:'document.new', title:'新規文書', execute:showNewDocumentDialog});
+commands.register({id:'page.add', title:'ページを追加', enabled:()=>editing && documentIs('mdz'), execute:showPageDialog});
+commands.register({id:'page.duplicate', title:'現在ページを複製', enabled:()=>editing && documentIs('mdz') && !!current, execute:duplicateCurrentPage});
+commands.register({id:'view.toggleEditing', title:'表示 / 編集を切り替え', enabled:()=>!!state?.id, execute:toggleEditing});
+commands.register({id:'view.layout.editor', title:'編集だけ表示', enabled:()=>editing, execute:()=>setPaneLayout('editor')});
+commands.register({id:'view.layout.split', title:'編集とプレビューを並べる', enabled:()=>editing, execute:()=>setPaneLayout('split')});
+commands.register({id:'view.layout.preview', title:'プレビューだけ表示', enabled:()=>editing, execute:()=>setPaneLayout('preview')});
+
 commands.register({id:'document.open', title:'文書を開く', shortcut:'Ctrl+O', execute:()=>action(async()=>{await flush(); if(await api.Open('')) await reload();})});
 commands.register({id:'document.save', title:'保存', shortcut:'Ctrl+S', enabled:()=>!!state?.id, execute:()=>save(false)});
 commands.register({id:'document.saveAs', title:'名前を付けて保存', shortcut:'Ctrl+Shift+S', enabled:()=>!!state?.id, execute:()=>save(true)});
