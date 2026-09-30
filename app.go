@@ -264,6 +264,24 @@ func (a *App) NewDocument(kind string) (bool, error) {
 	a.adoptLocked(s)
 	return true, nil
 }
+
+func (a *App) NewBlankDocument(kind string) (bool, error) {
+	if !a.discardAllowed() {
+		return false, nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	d, err := newBlankDocument(kind)
+	if err != nil {
+		return false, err
+	}
+	s, err := workspace.New(a.base, d, "", true)
+	if err != nil {
+		return false, err
+	}
+	a.adoptLocked(s)
+	return true, nil
+}
 func (a *App) Open(filename string) (bool, error) {
 	if !a.discardAllowed() {
 		return false, nil
@@ -387,9 +405,17 @@ func (a *App) Save(saveAs bool) (bool, error) {
 	a.mu.Lock()
 	filename := a.session.Filename
 	id := a.session.ID
+	documentType := a.documentTypeLocked()
 	a.mu.Unlock()
 	if saveAs || filename == "" {
 		defaultName := "document.mdz"
+		title := "MDZとして保存"
+		filters := []runtime.FileFilter{{DisplayName: "MDZip", Pattern: "*.mdz"}}
+		if documentType == document.Markdown && !saveAs {
+			defaultName = "document.md"
+			title = "Markdownとして保存"
+			filters = []runtime.FileFilter{{DisplayName: "Markdown", Pattern: "*.md;*.markdown"}}
+		}
 		if filename != "" {
 			stem := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
 			if stem != "" {
@@ -397,14 +423,18 @@ func (a *App) Save(saveAs bool) (bool, error) {
 			}
 		}
 		var err error
-		filename, err = runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{Title: "MDZとして保存", DefaultFilename: defaultName, Filters: []runtime.FileFilter{{DisplayName: "MDZip", Pattern: "*.mdz"}}})
+		filename, err = runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{Title: title, DefaultFilename: defaultName, Filters: filters})
 		if err != nil {
 			return false, err
 		}
 		if filename == "" {
 			return false, nil
 		}
-		if !strings.EqualFold(filepath.Ext(filename), ".mdz") {
+		if documentType == document.Markdown && !saveAs {
+			if !bundle.IsMarkdown(filename) {
+				filename += ".md"
+			}
+		} else if !strings.EqualFold(filepath.Ext(filename), ".mdz") {
 			filename += ".mdz"
 		}
 	}
