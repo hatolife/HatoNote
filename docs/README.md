@@ -44,3 +44,4 @@
 - SPEC-038: `features/diagrams.md` はMermaid、PlantUML、数式表示を定義する。
 - SPEC-039: `features/references.md` は引用元と参考文献管理を定義する。
 - SPEC-040: `features/diagnostics.md` は診断表示を定義する。
+- SPEC-041: `features/document-diagnostics.md` は開いている文書全体の診断を定義する。
