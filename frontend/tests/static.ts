@@ -71,4 +71,31 @@ for (const command of commandizedFeatureCommands) {
 	assert(commandIDs.includes(command), `missing feature command ${command}`);
 }
 
+// COMMAND-006, COMMAND-038〜047: 操作部品からCommand経路を外さないことを固定します。
+function commandBinding(control: string, command: string): RegExp {
+	const escapedCommand = command.replaceAll('.', '\\.');
+	return new RegExp("element\\('" + control + "'\\)\\.onclick\\s*=\\s*\\(\\)\\s*=>\\s*runCommand\\('" + escapedCommand + "'\\)");
+}
+for (const [control, command] of [
+	['image','image.add'],
+	['document-to-slides','document.convertToSlides'],
+	['slides-to-document','document.convertToMDZ'],
+	['recovery','recovery.open'],
+	['welcome-recovery','recovery.open'],
+	['slides-present','presentation.startCurrent'],
+	['slides-start','presentation.startFirst'],
+	['slide-prev','slides.previous'],
+	['slide-next','slides.next'],
+] as const) {
+	assert.match(app, commandBinding(control, command), `control ${control} bypasses command ${command}`);
+}
+for (const [engine, command] of [
+	['builtin','editor.builtin'],
+	['wysiwyg','editor.wysiwyg'],
+	['neovim','editor.neovim'],
+] as const) {
+	assert(app.includes(`${engine}:'${command}'`), `editor engine ${engine} bypasses command ${command}`);
+}
+assert.match(app, /button\.onclick\s*=\s*\(\)\s*=>\s*runCommand\(editorEngineCommands\[button\.dataset\.engine as EditorEngine\]\)/, 'editor engine button bypasses command registry');
+
 console.log(`checked ${ids.length} HTML ids, ${commandIDs.length} commands, ${settingsFields.length} settings`);
