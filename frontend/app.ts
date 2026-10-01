@@ -660,9 +660,8 @@ async function toggleEditing(): Promise<void> {
 	});
 }
 element('editing').onclick = () => runCommand('view.toggleEditing');
-for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-engine]')) button.onclick = () => {
-	const requested = button.dataset.engine as EditorEngine;
-	void action(async () => {
+async function switchEditorEngine(requested: EditorEngine): Promise<void> {
+	await action(async () => {
 		if (!editing || requested === activeEngine || (requested === 'wysiwyg' && !supportsWysiwyg())) return;
 		if (requested === 'neovim') {
 			await flush(); await api.StartNative(); state = await api.State(); applyEditor();
@@ -690,7 +689,9 @@ for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-eng
 		if (requested === 'wysiwyg') { wysiwyg.focus(); status('リッチ編集に切り替えました'); }
 		else { editor.focus({preventScroll:true}); status('Markdownエディターに切り替えました'); }
 	});
-};
+}
+const editorEngineCommands: Record<EditorEngine, string> = {builtin:'editor.builtin',wysiwyg:'editor.wysiwyg',neovim:'editor.neovim'};
+for (const button of editorEngine.querySelectorAll<HTMLButtonElement>('[data-engine]')) button.onclick = () => runCommand(editorEngineCommands[button.dataset.engine as EditorEngine]);
 function applyTheme(): void {
 	document.documentElement.classList.toggle('dark', cfg.theme === 'dark' || (cfg.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches));
 	document.documentElement.dataset.accent = cfg.accent;
@@ -1144,7 +1145,7 @@ function restoreWorkspaceFromWelcome(): void {
 element('new').onclick = () => runCommand('document.new');
 element('welcome-back').onclick = restoreWorkspaceFromWelcome;
 element('welcome-open').onclick = () => runCommand('document.open');
-element('welcome-recovery').onclick = () => element('recovery').click();
+element('welcome-recovery').onclick = () => runCommand('recovery.open');
 for (const button of document.querySelectorAll<HTMLButtonElement>('#welcome [data-new-kind][data-new-variant]')) {
 	button.onclick = () => void action(async () => {
 		await flush();
@@ -1196,7 +1197,8 @@ async function duplicateCurrentPage(): Promise<void> {
 	});
 }
 element('duplicate-page').onclick = () => runCommand('page.duplicate');
-element('image').onclick = () => void action(async () => { await insertImage(await api.AddImage()); });
+async function addImageFromFile(): Promise<void> { await action(async () => { await insertImage(await api.AddImage()); }); }
+element('image').onclick = () => runCommand('image.add');
 async function clipboardImage(file: File): Promise<void> {
 	if (file.size > 32 * 1024 * 1024) throw new Error('画像は32MiB以下にしてください');
 	const data = new Uint8Array(await file.arrayBuffer()); let binary = '';
@@ -1266,8 +1268,8 @@ async function convertDocumentType(target: 'slides' | 'mdz'): Promise<void> {
 		status(toSlides ? 'スライドモードへ変換しました。保存すると確定します。' : '通常MDZへ変換しました。保存すると確定します。');
 	});
 }
-element('document-to-slides').onclick = () => void convertDocumentType('slides');
-element('slides-to-document').onclick = () => void convertDocumentType('mdz');
+element('document-to-slides').onclick = () => runCommand('document.convertToSlides');
+element('slides-to-document').onclick = () => runCommand('document.convertToMDZ');
 window.addEventListener('keydown', event => {
 	if (!(event.ctrlKey || event.metaKey)) return;
 	const key = event.key.toLowerCase();
@@ -1931,6 +1933,17 @@ commands.register({id:'macro.manage', title:'マクロ管理', execute:showMacro
 commands.register({id:'document.new', title:'新規文書', execute:showWelcomeCreation});
 commands.register({id:'page.add', title:'ページを追加', enabled:()=>editing && documentIs('mdz'), execute:showPageDialog});
 commands.register({id:'page.duplicate', title:'現在ページを複製', enabled:()=>editing && documentIs('mdz') && !!current, execute:duplicateCurrentPage});
+commands.register({id:'image.add', title:'画像を追加', enabled:()=>editing && !!state?.id && !!state.capabilities.embeddedAssets, execute:addImageFromFile});
+commands.register({id:'document.convertToSlides', title:'通常MDZをスライドへ変換', enabled:()=>editing && documentIs('mdz'), execute:()=>convertDocumentType('slides')});
+commands.register({id:'document.convertToMDZ', title:'スライドを通常MDZへ変換', enabled:()=>editing && documentIs('slides'), execute:()=>convertDocumentType('mdz')});
+commands.register({id:'recovery.open', title:'作業データ復旧', enabled:()=>!state?.id || !documentIs('markdown'), execute:showRecoveries});
+commands.register({id:'editor.builtin', title:'テキスト編集へ切り替え', enabled:()=>editing && activeEngine!=='builtin', execute:()=>switchEditorEngine('builtin')});
+commands.register({id:'editor.wysiwyg', title:'リッチ編集へ切り替え', enabled:()=>editing && supportsWysiwyg() && activeEngine!=='wysiwyg', execute:()=>switchEditorEngine('wysiwyg')});
+commands.register({id:'editor.neovim', title:'Neovim編集へ切り替え', enabled:()=>editing && nvimAvailable && activeEngine!=='neovim', execute:()=>switchEditorEngine('neovim')});
+commands.register({id:'presentation.startCurrent', title:'現在のスライドから発表', enabled:()=>documentIs('slides') && !!state?.id, execute:()=>openPresentation(false)});
+commands.register({id:'presentation.startFirst', title:'先頭から発表', enabled:()=>documentIs('slides') && !!state?.id, execute:()=>openPresentation(true)});
+commands.register({id:'slides.previous', title:'前のスライド', enabled:()=>documentIs('slides') && canNavigateSlide(-1), execute:()=>navigateSlide(-1)});
+commands.register({id:'slides.next', title:'次のスライド', enabled:()=>documentIs('slides') && canNavigateSlide(1), execute:()=>navigateSlide(1)});
 commands.register({id:'view.toggleEditing', title:'表示 / 編集を切り替え', enabled:()=>!!state?.id, execute:toggleEditing});
 commands.register({id:'view.layout.editor', title:'編集だけ表示', enabled:()=>editing, execute:()=>setPaneLayout('editor')});
 commands.register({id:'view.layout.split', title:'編集とプレビューを並べる', enabled:()=>editing, execute:()=>setPaneLayout('split')});
@@ -2124,7 +2137,7 @@ async function showRecoveries(): Promise<void> {
 	}
 	showAppDialog(element<HTMLDialogElement>('recovery-dialog'));
 }
-element('recovery').onclick = () => void showRecoveries().catch(error => status(String(error), true));
+element('recovery').onclick = () => runCommand('recovery.open');
 function markdownDropTarget(x: number, y: number): {target: string; after: boolean} | undefined {
 	if (!state?.id || documentIs('markdown')) return undefined;
 	const hit = document.elementFromPoint(x, y) as HTMLElement | null;
@@ -2744,12 +2757,17 @@ for(const id of ['slide-font-family','slide-margin-x','slide-margin-y','slide-bo
 	control.addEventListener('input',updateSlideTypography);
 	if(control instanceof HTMLSelectElement)control.addEventListener('change',updateSlideTypography);
 }
-function navigateSlide(offset: number): void {
+function canNavigateSlide(offset: number): boolean {
+	const slides=slidesInfo?.deck.slides; if(!slides) return false;
+	const index=slides.findIndex(s=>s.file===current)+offset;
+	return index>=0 && index<slides.length;
+}
+async function navigateSlide(offset: number): Promise<void> {
 	const slides=slidesInfo?.deck.slides; if(!slides) return;
 	const index=slides.findIndex(s=>s.file===current)+offset;
-	if(index>=0 && index<slides.length) void action(async()=>{await flush();await selectPage(slides[index].file);});
+	if(index>=0 && index<slides.length) await action(async()=>{await flush();await selectPage(slides[index].file);});
 }
-element('slide-prev').onclick=()=>navigateSlide(-1);element('slide-next').onclick=()=>navigateSlide(1);
+element('slide-prev').onclick=()=>runCommand('slides.previous');element('slide-next').onclick=()=>runCommand('slides.next');
 element('slides-settings').onclick=()=>{
 	if(!slidesInfo) return;
 	slideSettings=structuredClone(slidesInfo);
@@ -2800,7 +2818,7 @@ function closePresentation(): void {
 	const slide=slidesInfo?.deck.slides[presentationIndex];
 	if(slide && !busy && documentIs('slides')) void action(async()=>{await selectPage(slide.file);});
 }
-function openPresentation(first: boolean): void {
+async function openPresentation(first: boolean): Promise<void> {
 	if(!slidesInfo || busy)return;
 	presentationFocus=document.activeElement as HTMLElement;
 	const overlay=element('presentation');overlay.hidden=false;overlay.focus();
@@ -2810,7 +2828,7 @@ function openPresentation(first: boolean): void {
 		if(!active && !overlay.hidden) { window.runtime.WindowFullscreen!(); presentationOwnsFullscreen=true; }
 	}) : overlay.requestFullscreen();
 	void fullscreen.catch(()=>status('全画面化できないため、ウィンドウ内で発表します'));
-	void action(async()=>{
+	await action(async()=>{
 		try {
 			await fullscreen.catch(()=>{});
 			await flush();
@@ -2827,7 +2845,7 @@ function openPresentation(first: boolean): void {
 	});
 }
 function updatePresentationPosition(): void {const overlay=element('presentation');overlay.dataset.index=String(presentationIndex);overlay.setAttribute('aria-label',`${slidesInfo?.deck.title}：${presentationIndex+1} / ${slidesInfo?.deck.slides.length || 0}（Escで終了）`);}
-element('slides-present').onclick=()=>openPresentation(false);element('slides-start').onclick=()=>openPresentation(true);
+element('slides-present').onclick=()=>runCommand('presentation.startCurrent');element('slides-start').onclick=()=>runCommand('presentation.startFirst');
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement && !element('presentation').hidden)closePresentation();});
 window.addEventListener('keydown',event=>{
 	if(element('presentation').hidden)return;
@@ -2847,7 +2865,7 @@ window.addEventListener('message',event=>{
 	if(data.type==='mdz-slide-overflow' && frame===slideFrame)element('slide-overflow').hidden=!data.ids.includes(selectedSlide()?.id);
 	if(data.type==='mdz-slide-exit')closePresentation();
 	if(data.type==='mdz-slide-index' && frame===presentationFrame){presentationIndex=data.index;updatePresentationPosition();}
-	if(data.type==='mdz-slide-navigate' && frame===slideFrame && !editing && (data.offset===-1 || data.offset===1))navigateSlide(data.offset);
+	if(data.type==='mdz-slide-navigate' && frame===slideFrame && !editing && (data.offset===-1 || data.offset===1))runCommand(data.offset===-1?'slides.previous':'slides.next');
 	if(data.type==='mdz-slide-save')void save(data.saveAs===true);
 	if(data.type==='mdz-slide-link') {
 		if(/^https?:\/\//i.test(data.href)){if(confirm('外部ブラウザーで開きますか？\n'+data.href))window.runtime.BrowserOpenURL(data.href);return;}

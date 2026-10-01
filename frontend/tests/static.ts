@@ -54,4 +54,21 @@ for (const id of diagnosticsIDs) {
 }
 assert(commandIDs.includes('document.diagnostics'), 'missing document diagnostics command');
 
+const commandizedFeatureCommands = [
+	'image.add',
+	'document.convertToSlides',
+	'document.convertToMDZ',
+	'recovery.open',
+	'editor.builtin',
+	'editor.wysiwyg',
+	'editor.neovim',
+	'presentation.startCurrent',
+	'presentation.startFirst',
+	'slides.previous',
+	'slides.next',
+];
+for (const command of commandizedFeatureCommands) {
+	assert(commandIDs.includes(command), `missing feature command ${command}`);
+}
+
 console.log(`checked ${ids.length} HTML ids, ${commandIDs.length} commands, ${settingsFields.length} settings`);
