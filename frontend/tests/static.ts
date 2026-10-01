@@ -48,4 +48,10 @@ for (const command of ['navigation.quickOpen','navigation.back','navigation.forw
 	assert(commandIDs.includes(command), `missing navigation command ${command}`);
 }
 
+const diagnosticsIDs = ['document-diagnostics-dialog','document-diagnostics-title','document-diagnostics-summary','document-diagnostics-results'];
+for (const id of diagnosticsIDs) {
+	assert.equal(ids.filter(value => value === id).length, 1, `document diagnostics id ${id}`);
+}
+assert(commandIDs.includes('document.diagnostics'), 'missing document diagnostics command');
+
 console.log(`checked ${ids.length} HTML ids, ${commandIDs.length} commands, ${settingsFields.length} settings`);

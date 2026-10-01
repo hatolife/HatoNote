@@ -27,6 +27,7 @@ interface PageTemplate { id: string; title: string }
 interface DocumentTemplate { id: string; kind: string; title: string }
 interface UserTemplate { id: string; scope: 'page' | 'document'; kind: 'mdz'; title: string; content: string }
 interface MarkdownDiagnostic { line: number; rule: string; message: string }
+interface DocumentDiagnostic { type: 'lint' | 'broken-link' | 'broken-image' | 'unused-image'; page: string; line?: number; rule?: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
 interface NavigationEntry { page: string; ratio: number }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
@@ -41,7 +42,7 @@ interface Backend {
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>; UserTemplates(): Promise<UserTemplate[]>; SaveUserTemplate(template: UserTemplate): Promise<UserTemplate>; DeleteUserTemplate(id: string): Promise<void>;
-	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; RenderMath(source:string, display:boolean): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>;
+	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; RenderMath(source:string, display:boolean): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>; DocumentDiagnostics(): Promise<DocumentDiagnostic[]>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	References(): Promise<ReferenceSet>; SaveReference(reference: ReferenceItem): Promise<ReferenceItem>; DeleteReference(id: string): Promise<void>; ApplyReferences(page: string): Promise<string>;
 	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; ChooseMermaid(): Promise<string>; ChooseJava(): Promise<string>; ChoosePlantUMLJar(): Promise<string>; ChooseKatex(): Promise<string>; OpenDataFolder(): Promise<void>;
@@ -1943,6 +1944,7 @@ commands.register({id:'document.save', title:'保存', shortcut:'Ctrl+S', enable
 commands.register({id:'document.saveAs', title:'名前を付けて保存', shortcut:'Ctrl+Shift+S', enabled:()=>!!state?.id, execute:()=>save(true)});
 commands.register({id:'document.search', title:'文書内検索', shortcut:'Ctrl+F', enabled:()=>!!state?.id, execute:showSearch});
 commands.register({id:'document.history', title:'バックアップ履歴', enabled:()=>!!state?.filename, execute:showHistory});
+commands.register({id:'document.diagnostics', title:'文書を診断', enabled:()=>!!state?.id, execute:showDocumentDiagnostics});
 commands.register({id:'export.html', title:'単一HTMLへエクスポート', enabled:()=>!!state?.id, execute:()=>exportDocument('html')});
 commands.register({id:'export.pdf', title:'PDFへエクスポート', enabled:()=>!!state?.id, execute:()=>exportDocument('pdf')});
 const lintDialog = element<HTMLDialogElement>('lint-dialog');
@@ -2012,6 +2014,50 @@ async function lintCurrentMarkdown(): Promise<void> {
 	}
 	element('lint-summary').textContent = diagnostics.length ? `${diagnostics.length.toLocaleString()}件` : '0件';
 	showAppDialog(lintDialog);
+}
+const documentDiagnosticsDialog = element<HTMLDialogElement>('document-diagnostics-dialog');
+const documentDiagnosticsResults = element<HTMLElement>('document-diagnostics-results');
+function documentDiagnosticLabel(type: DocumentDiagnostic['type']): string {
+	switch (type) {
+	case 'lint': return 'Markdown Lint';
+	case 'broken-link': return '切れたリンク';
+	case 'broken-image': return '切れた画像';
+	case 'unused-image': return '未使用画像';
+	}
+}
+async function showDocumentDiagnostics(): Promise<void> {
+	if (!state?.id) return;
+	await flush();
+	const diagnostics = await api.DocumentDiagnostics();
+	documentDiagnosticsResults.replaceChildren();
+	if (!diagnostics.length) {
+		const empty = document.createElement('p');
+		empty.className = 'diagnostics-empty';
+		empty.textContent = '問題は見つかりませんでした。';
+		documentDiagnosticsResults.append(empty);
+	} else {
+		for (const diagnostic of diagnostics) {
+			const row = document.createElement(diagnostic.page ? 'button' : 'div');
+			row.className = 'document-diagnostic';
+			if (row instanceof HTMLButtonElement) {
+				row.type = 'button';
+				row.title = `${diagnostic.page}へ移動`;
+				row.onclick = () => {
+					documentDiagnosticsDialog.close();
+					void action(async () => { await flush(); await selectPage(diagnostic.page); });
+				};
+			}
+			const where = document.createElement('strong');
+			const lintDetail = diagnostic.type === 'lint' ? ` · L${diagnostic.line ?? 0} · ${diagnostic.rule ?? ''}` : '';
+			where.textContent = `${diagnostic.page || '文書全体'} · ${documentDiagnosticLabel(diagnostic.type)}${lintDetail}`;
+			const message = document.createElement('span');
+			message.textContent = diagnostic.message;
+			row.append(where, message);
+			documentDiagnosticsResults.append(row);
+		}
+	}
+	element('document-diagnostics-summary').textContent = diagnostics.length ? `${diagnostics.length.toLocaleString()}件` : '0件';
+	showAppDialog(documentDiagnosticsDialog);
 }
 element('format-markdown').onclick = () => runCommand('markdown.format');
 element('lint-markdown').onclick = () => runCommand('markdown.lint');

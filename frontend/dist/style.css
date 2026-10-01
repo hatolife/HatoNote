@@ -722,6 +722,17 @@ footer #status { flex: 1; }
 .lint-result strong{font:11px/1.4 Consolas,monospace}
 .lint-result span{font-size:12px;color:var(--muted)}
 .lint-empty{padding:20px;text-align:center;color:var(--muted)}
+#document-diagnostics-dialog{width:min(780px,calc(100vw - 48px));max-height:min(760px,calc(100vh - 72px));overflow:hidden}
+.diagnostics-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.diagnostics-heading h2{margin:0}
+#document-diagnostics-summary{color:var(--muted);font-size:12px}
+#document-diagnostics-results{display:grid;gap:7px;max-height:56vh;overflow:auto;margin-top:16px}
+.document-diagnostic{box-sizing:border-box;display:grid;grid-template-columns:minmax(210px,.55fr) minmax(0,1fr);gap:14px;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--text);text-align:left}
+button.document-diagnostic{cursor:pointer}
+button.document-diagnostic:hover,button.document-diagnostic:focus-visible{background:var(--active)}
+.document-diagnostic strong{font:11px/1.4 Consolas,monospace;overflow-wrap:anywhere}
+.document-diagnostic span{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.diagnostics-empty{padding:20px;text-align:center;color:var(--muted)}
 #settings-form h3{font-size:12px;margin:10px 0 4px;color:var(--muted)}
 
 
