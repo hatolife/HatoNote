@@ -441,7 +441,7 @@ function scrollToMarkdownHeading(id: string): void {
 	updateMarkdownHeadingHighlight(id);
 	target.scrollIntoView({behavior:'smooth',block:'start'});
 }
-function appendMarkdownHeadings(nav: HTMLElement): void {
+function appendMarkdownHeadings(nav: HTMLElement, depth = 0): void {
 	if (markdownHeadingPage !== current) return;
 	for (const heading of markdownHeadings) {
 		const b = document.createElement('button');
@@ -458,12 +458,40 @@ function appendMarkdownHeadings(nav: HTMLElement): void {
 		nav.append(b);
 	}
 }
+function pageViewAvailable(): boolean {
+	return documentIs('mdz') && state.pages.length > 1 && state.pages.every(name => !name.includes('/'));
+}
 function renderMarkdownPages(nav: HTMLElement): void {
 	nav.replaceChildren();
 	for (const name of state.pages) {
 		addFileButton(nav,name,name.split('/').pop()!,0);
 		if (name === current) appendMarkdownHeadings(nav);
 	}
+}
+function renderFileTree(nav: HTMLElement): void {
+	nav.replaceChildren();
+	const folders = new Set<string>();
+	const files = [...state.pages, ...state.assets];
+	for (const name of files) { const parts = name.split('/'); for (let i=1;i<parts.length;i++) folders.add(parts.slice(0,i).join('/')); }
+	const currentFolders = new Set<string>();
+	{
+		const parts = current.split('/');
+		for (let i=1;i<parts.length;i++) currentFolders.add(parts.slice(0,i).join('/'));
+	}
+	const expanded = (folder: string): boolean => folderExpansionOverrides.get(folder) ?? currentFolders.has(folder);
+	const walk = (parent: string, depth: number): void => {
+		const children = [...folders].filter(p => p.split('/').slice(0,-1).join('/') === parent).sort();
+		for (const folder of children) {
+			const open = expanded(folder);
+			const b = document.createElement('button'); b.textContent = (open ? '▾ ' : '▸ ') + folder.split('/').pop() + '/'; b.style.paddingLeft = `${10+depth*16}px`; b.setAttribute('aria-expanded', String(open)); b.onclick = () => { folderExpansionOverrides.set(folder, !expanded(folder)); void refreshSidebar(); }; nav.append(b);
+			if (open) walk(folder,depth+1);
+		}
+		for (const name of files.filter(p => p.split('/').slice(0,-1).join('/') === parent).sort()) {
+			addFileButton(nav,name,name.split('/').pop()!,depth);
+			if (name === current && state.pages.includes(name)) appendMarkdownHeadings(nav, depth);
+		}
+	};
+	walk('',0);
 }
 function renderSingleMarkdown(nav: HTMLElement): void {
 	nav.replaceChildren();
@@ -485,7 +513,12 @@ async function refreshSidebar(): Promise<void> {
 	element('slide-tools').hidden = true;
 	if (!isSlides) { slideFrame.hidden = true; element('slide-overflow').hidden = true; slidesInfo = undefined; }
 	document.body.classList.toggle('book-mode', isBook);
+	const hasPageView = pageViewAvailable();
+	if (!hasPageView && documentView === 'pages') documentView = 'files';
 	element('tree-tabs').hidden = isBook || isSlides || isSingle;
+	element<HTMLButtonElement>('pages-tab').hidden = !hasPageView;
+	element<HTMLButtonElement>('pages-tab').classList.toggle('selected', documentView === 'pages');
+	element<HTMLButtonElement>('files-tab').classList.toggle('selected', documentView === 'files');
 	element('document-root').hidden = isBook || isSlides || isSingle;
 	element('book-heading').hidden = !isBook;
 	element('book-sidebar-bottom').hidden = !isBook || !editing;
@@ -510,29 +543,13 @@ async function refreshSidebar(): Promise<void> {
 	} else if(documentView==='pages') {
 		renderMarkdownPages(nav);
 	} else {
-		const folders = new Set<string>();
-		const files = [...state.pages, ...state.assets];
-		for (const name of files) { const parts = name.split('/'); for (let i=1;i<parts.length;i++) folders.add(parts.slice(0,i).join('/')); }
-		const currentFolders = new Set<string>();
-		{
-			const parts = current.split('/');
-			for (let i=1;i<parts.length;i++) currentFolders.add(parts.slice(0,i).join('/'));
-		}
-		const expanded = (folder: string): boolean => folderExpansionOverrides.get(folder) ?? currentFolders.has(folder);
-		const walk = (parent: string, depth: number): void => {
-			const children = [...folders].filter(p => p.split('/').slice(0,-1).join('/') === parent).sort();
-			for (const folder of children) {
-				const open = expanded(folder);
-				const b = document.createElement('button'); b.textContent = (open ? '▾ ' : '▸ ') + folder.split('/').pop() + '/'; b.style.paddingLeft = `${10+depth*16}px`; b.setAttribute('aria-expanded', String(open)); b.onclick = () => { folderExpansionOverrides.set(folder, !expanded(folder)); void refreshSidebar(); }; nav.append(b);
-				if (open) walk(folder,depth+1);
-			}
-			for (const name of files.filter(p => p.split('/').slice(0,-1).join('/') === parent).sort()) addFileButton(nav,name,name.split('/').pop()!,depth);
-		}; walk('',0);
+		renderFileTree(nav);
 	}
 	element('sidebar').scrollTop=scrollTop;
 	refreshTitle();
 }
 for(const view of ['pages','files'] as const) element(`${view}-tab`).onclick=()=>{
+	if (view === 'pages' && !pageViewAvailable()) return;
 	documentView=view;
 	for(const other of ['pages','files']) element(`${other}-tab`).classList.toggle('selected',view===other);
 	void refreshSidebar();
@@ -709,6 +726,7 @@ async function reload(startEditing = false): Promise<void> {
 	if (currentSession !== state.id) {
 		histories.clear(); folderExpansionOverrides.clear(); native.reset(); scrollPositions.clear(); navigationBack=[]; navigationForward=[];
 		scrollSyncRatio = 0; current = ''; currentSession = state.id; activeEngine = 'builtin'; lastAppliedEngine = '';
+		if (documentIs('mdz')) documentView = pageViewAvailable() ? 'pages' : 'files';
 	}
 	element('welcome').hidden = !!state.id; element('workspace').hidden = !state.id; element('editing').hidden = !state.id;
 	for (const id of ['save','save-as','sidebar-toggle','search']) element(id).hidden = !state.id;
@@ -1193,9 +1211,10 @@ async function render(): Promise<void> {
 		for (const image of body.querySelectorAll('img')) if (!image.complete) image.addEventListener('load', updatePreviewTablePositions, {once:true});
 		win.addEventListener('scroll', () => syncScroll('preview', scrollRatio(win.scrollY, body.documentElement.scrollHeight, win.innerHeight)), {passive:true});
 		requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
-		if (!bookInfo?.present && (documentIs('markdown') || documentView === 'pages')) {
+		if (!bookInfo?.present) {
 			if (documentIs('markdown')) renderSingleMarkdown(element('pages'));
-			else renderMarkdownPages(element('pages'));
+			else if (documentView === 'pages') renderMarkdownPages(element('pages'));
+			else renderFileTree(element('pages'));
 			preview.contentWindow?.addEventListener('scroll', syncMarkdownHeadingHighlight, {passive:true});
 			requestAnimationFrame(syncMarkdownHeadingHighlight);
 		}
