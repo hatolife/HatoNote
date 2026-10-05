@@ -3,6 +3,10 @@ import fs from 'node:fs';
 
 const html = fs.readFileSync('dist/index.html', 'utf8');
 const app = fs.readFileSync('app.ts', 'utf8');
+const audience = fs.readFileSync('audience.ts', 'utf8');
+const audienceHTML = fs.readFileSync('dist/audience.html', 'utf8');
+const style = fs.readFileSync('dist/style.css', 'utf8');
+const audienceGo = fs.readFileSync('../audience.go', 'utf8');
 const settings = fs.readFileSync('../internal/settings/settings.go', 'utf8');
 
 function duplicates(values: readonly string[]): string[] {
@@ -97,5 +101,14 @@ for (const [engine, command] of [
 	assert(app.includes(`${engine}:'${command}'`), `editor engine ${engine} bypasses command ${command}`);
 }
 assert.match(app, /button\.onclick\s*=\s*\(\)\s*=>\s*runCommand\(editorEngineCommands\[button\.dataset\.engine as EditorEngine\]\)/, 'editor engine button bypasses command registry');
+
+// SCR-PRESENT-008 / SCR-PRESENTER-037: 全画面表示ではアプリ側・投影側ともタイトルバーを残さないことを固定します。
+assert(app.includes("document.body.classList.add('presentation-active')"), 'presentation does not enter titlebar-hidden state');
+assert(app.includes("document.body.classList.remove('presentation-active')"), 'presentation does not leave titlebar-hidden state');
+assert(style.includes('body.presentation-active #titlebar{display:none}'), 'presentation titlebar hide rule is missing');
+assert(audienceGo.includes('Frameless: true'), 'audience window is not frameless');
+assert(audienceHTML.includes('id="audience-titlebar"'), 'windowed audience titlebar is missing');
+assert(audienceHTML.includes('body.fullscreen #audience-titlebar{display:none}'), 'audience fullscreen titlebar hide rule is missing');
+assert(audience.includes("document.body.classList.toggle('fullscreen',fullscreen)"), 'audience fullscreen state is not reflected in the DOM');
 
 console.log(`checked ${ids.length} HTML ids, ${commandIDs.length} commands, ${settingsFields.length} settings`);
