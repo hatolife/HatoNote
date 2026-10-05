@@ -9,7 +9,8 @@
 		"test:slides": "node tests/slides.ts",
 		"test:layout": "node tests/layout.ts",
 		"test:commands": "node tests/commands.ts",
-		"test:static": "node tests/static.ts"
+		"test:static": "node tests/static.ts",
+		"test:scroll": "node tests/scroll-sync.ts"
 	},
 	"devDependencies": {
 		"jszip": "^3.10.1",
