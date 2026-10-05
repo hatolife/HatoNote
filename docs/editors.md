@@ -45,6 +45,8 @@
 - EDITOR-WYSIWYG-024: リッチ編集では選択範囲へ文字色を指定でき、Markdownには安全な `<span style="color:...">` として保存する。
 - EDITOR-WYSIWYG-025: リッチ編集では選択範囲へ文字サイズを指定でき、Markdownには安全な `<span style="font-size:...">` として保存する。
 - EDITOR-WYSIWYG-026: HTML書式は許可済みタグと属性だけを描画し、スクリプト、イベント属性、危険なURL、未許可CSSを実行または保持しない。
+- EDITOR-WYSIWYG-027: 安全に往復変換できないMarkdownを検出してリッチ編集への切り替えを拒否した場合は、判定原因となった構文またはDOM差分をログへ出力する。
+- EDITOR-WYSIWYG-028: リッチ編集への切り替えを拒否した場合は、判定原因の要約をステータス表示へ含める。
 
 ## neovim
 
