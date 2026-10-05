@@ -24,8 +24,8 @@ const anchors = [
 	{source:0.2,preview:0.1},
 	{source:0.4,preview:0.7},
 ];
-assert.equal(mapAnchoredScrollRatio(0.3, anchors), 0.4, 'SCROLL-001: 表区間をプレビュー比率へ補間できる');
-assert.equal(mapAnchoredScrollRatio(0.4, anchors, true), 0.3, 'SCROLL-001: プレビュー比率から表区間を逆変換できる');
+assert.ok(Math.abs(mapAnchoredScrollRatio(0.3, anchors) - 0.4) < 1e-9, 'SCROLL-001: 表区間をプレビュー比率へ補間できる');
+assert.ok(Math.abs(mapAnchoredScrollRatio(0.4, anchors, true) - 0.3) < 1e-9, 'SCROLL-001: プレビュー比率から表区間を逆変換できる');
 assert.equal(mapAnchoredScrollRatio(0, anchors), 0);
 assert.equal(mapAnchoredScrollRatio(1, anchors), 1);
 
