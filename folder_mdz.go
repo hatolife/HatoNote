@@ -179,10 +179,15 @@ func prepareMDZSources(paths []string) (mdzSourceSet, error) {
 		Name:           filepath.Base(base),
 		SelectionCount: len(sources),
 	}
+	for _, source := range sources {
+		if source.isDir {
+			info.Directory = true
+			break
+		}
+	}
 	if len(sources) == 1 && sources[0].isDir {
 		info.Path = sources[0].path
 		info.Name = filepath.Base(sources[0].path)
-		info.Directory = true
 	}
 	set := mdzSourceSet{base: base, sources: sources, info: info}
 	err = walkMDZSources(set, func(name, source string) error {
