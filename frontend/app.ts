@@ -2,6 +2,7 @@ import { History, TextState } from './history.js';
 import { NativeView } from './nvim.js';
 import { WysiwygEditor, equivalentRenderedHTML, markdownFromRenderedHTML, renderedHTMLHasOmittedRawHTML } from './wysiwyg.js';
 import { CommandRegistry } from './commands.js';
+import { findMarkdownTableRanges, mapAnchoredScrollRatio, type MarkdownTableRange, type ScrollRatioAnchor } from './scroll-sync.js';
 type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
 type PaneLayout = 'editor' | 'split' | 'preview';
 type EditorEngine = 'builtin' | 'wysiwyg' | 'neovim';
@@ -30,6 +31,8 @@ interface MarkdownDiagnostic { line: number; rule: string; message: string }
 interface DocumentDiagnostic { type: 'lint' | 'broken-link' | 'broken-image' | 'unused-image'; page: string; line?: number; rule?: string; message: string }
 interface MacroDefinition { id: string; name: string; commands: string[] }
 interface NavigationEntry { page: string; ratio: number }
+interface NativeScrollState { ratio: number; topLine: number; totalLines: number; windowLines: number }
+interface PreviewTablePosition extends MarkdownTableRange { topRatio: number; bottomRatio: number }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
 interface Backend {
 	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>; CheckDiagramDependencies(mermaidPath:string,javaPath:string,plantUMLJar:string,katexPath:string):Promise<Dependency[]>;
@@ -118,6 +121,9 @@ let nativeCanUndo = false;
 let nativeCanRedo = false;
 let scrollSyncLocked = false;
 let scrollSyncRatio = 0;
+let nativeScrollState: NativeScrollState | undefined;
+let previewTableRanges: MarkdownTableRange[] = [];
+let previewTablePositions: PreviewTablePosition[] = [];
 let nativeScrollTimer = 0;
 const scrollPositions = new Map<string, number>();
 let navigationBack: NavigationEntry[] = [];
@@ -519,6 +525,7 @@ async function selectPage(name: string, options: {record?: boolean; ratio?: numb
 	scrollSyncRatio = scrollPositions.get(name) ?? 0;
 	if (editing && activeEngine === 'neovim') {
 		nativeCanUndo = false; nativeCanRedo = false; updateUndoRedo();
+		nativeScrollState = undefined;
 		await api.NativeOpen(name);
 		await api.NativeScroll(scrollSyncRatio);
 	}
@@ -858,13 +865,53 @@ function sendNativeScroll(ratio: number): void {
 		void api.NativeScroll(ratio).catch(error => status(String(error), true));
 	}, 32);
 }
+function updatePreviewTablePositions(): void {
+	previewTablePositions = [];
+	if (!previewTableRanges.length || preview.hidden || documentIs('slides')) return;
+	const doc = preview.contentDocument;
+	const win = preview.contentWindow;
+	if (!doc || !win) return;
+	const tables = [...doc.querySelectorAll<HTMLTableElement>('table')];
+	if (tables.length !== previewTableRanges.length) return;
+	const scrollRange = Math.max(0, doc.documentElement.scrollHeight - win.innerHeight);
+	if (scrollRange <= 0) return;
+	previewTablePositions = previewTableRanges.map((range, index) => {
+		const rect = tables[index].getBoundingClientRect();
+		const top = win.scrollY + rect.top;
+		const bottom = win.scrollY + rect.bottom;
+		return {...range,topRatio:clampScrollRatio(top / scrollRange),bottomRatio:clampScrollRatio(bottom / scrollRange)};
+	});
+}
+function nativePreviewAnchors(): ScrollRatioAnchor[] {
+	const metrics = nativeScrollState;
+	if (!metrics || !previewTablePositions.length) return [];
+	const maxTop = Math.max(1, metrics.totalLines - metrics.windowLines + 1);
+	if (maxTop <= 1) return [];
+	const lineRatio = (line: number): number => clampScrollRatio((line - 1) / (maxTop - 1));
+	const anchors: ScrollRatioAnchor[] = [];
+	for (const table of previewTablePositions) {
+		const start = lineRatio(table.startLine);
+		const end = lineRatio(table.endLine + 1);
+		if (start > 0 && start < 1 && table.topRatio > 0 && table.topRatio < 1) anchors.push({source:start,preview:table.topRatio});
+		if (end > start && end < 1 && table.bottomRatio >= table.topRatio && table.bottomRatio < 1) anchors.push({source:end,preview:table.bottomRatio});
+	}
+	return anchors;
+}
+function nativeToPreviewRatio(ratio: number): number {
+	return mapAnchoredScrollRatio(ratio, nativePreviewAnchors());
+}
+function previewToNativeRatio(ratio: number): number {
+	return mapAnchoredScrollRatio(ratio, nativePreviewAnchors(), true);
+}
 function syncScroll(source: ScrollSource, ratio: number, force = false): void {
 	if (!state?.id || (scrollSyncLocked && !force)) return;
-	const next = clampScrollRatio(ratio);
+	let next = clampScrollRatio(ratio);
+	if (activeEngine === 'neovim' && source === 'preview') next = previewToNativeRatio(next);
 	if (!force && Math.abs(next - scrollSyncRatio) < 0.0005) return;
 	scrollSyncRatio = next;
 	if (current) scrollPositions.set(current, next);
 	scrollSyncLocked = true;
+	const previewRatio = activeEngine === 'neovim' ? nativeToPreviewRatio(next) : next;
 
 	if (source !== 'editor') {
 		editor.scrollTop = next * Math.max(0, editor.scrollHeight - editor.clientHeight);
@@ -875,7 +922,7 @@ function syncScroll(source: ScrollSource, ratio: number, force = false): void {
 	if (source !== 'preview' && !preview.hidden && !documentIs('slides')) {
 		const win = preview.contentWindow;
 		const doc = preview.contentDocument;
-		if (win && doc) win.scrollTo(0, next * Math.max(0, doc.documentElement.scrollHeight - win.innerHeight));
+		if (win && doc) win.scrollTo(0, previewRatio * Math.max(0, doc.documentElement.scrollHeight - win.innerHeight));
 	}
 	const book = element<HTMLIFrameElement>('book-preview');
 	if (source !== 'book' && !book.hidden && bookInfo?.url) {
@@ -980,8 +1027,10 @@ async function render(): Promise<void> {
 	if (!bookInfo?.url || bookFallback || summaryPreview) { preview.hidden=false; element("book-preview").hidden=true; }
 	const ticket = ++renderID;
 	const sourcePage = current;
-	const html = await api.Render(editor.value);
+	const markdown = editor.value;
+	const html = await api.Render(markdown);
 	if (ticket !== renderID || sourcePage !== current) return;
+	previewTableRanges = findMarkdownTableRanges(markdown);
 	const doc = new DOMParser().parseFromString(html, 'text/html');
 	await enhanceDiagramBlocks(doc);
 	await enhanceMathBlocks(doc);
@@ -1029,6 +1078,8 @@ async function render(): Promise<void> {
 		const body = preview.contentDocument;
 		const win = preview.contentWindow;
 		if (!body || !win) return;
+		updatePreviewTablePositions();
+		for (const image of body.querySelectorAll('img')) if (!image.complete) image.addEventListener('load', updatePreviewTablePositions, {once:true});
 		win.addEventListener('scroll', () => syncScroll('preview', scrollRatio(win.scrollY, body.documentElement.scrollHeight, win.innerHeight)), {passive:true});
 		requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
 		if (!bookInfo?.present && (documentIs('markdown') || documentView === 'pages')) {
@@ -2265,10 +2316,19 @@ window.runtime.OnFileDrop((x, y, paths) => {
 	});
 }, false);
 window.runtime.EventsOn('native-redraw', events => native.redraw(events));
-window.runtime.EventsOn('native-scroll', ratio => {
+window.runtime.EventsOn('native-scroll', payload => {
 	if (busy) return;
-	const value = Number(ratio);
-	if (Number.isFinite(value)) syncScroll('native', value);
+	if (payload && typeof payload === 'object') {
+		const value = payload as Partial<NativeScrollState>;
+		const ratio = Number(value.ratio), topLine = Number(value.topLine), totalLines = Number(value.totalLines), windowLines = Number(value.windowLines);
+		if (Number.isFinite(ratio) && Number.isFinite(topLine) && Number.isFinite(totalLines) && Number.isFinite(windowLines)) {
+			nativeScrollState = {ratio,topLine,totalLines,windowLines};
+			syncScroll('native', ratio);
+		}
+		return;
+	}
+	const ratio = Number(payload);
+	if (Number.isFinite(ratio)) syncScroll('native', ratio);
 });
 window.runtime.EventsOn('native-save', () => { nativeSaveRequested = true; });
 window.runtime.EventsOn('native-changed', () => { if (state) { state.dirty = true; refreshTitle(); } });
