@@ -77,3 +77,80 @@ func writeFolderTestFile(t *testing.T, root, name, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestBuildMDZDocumentFromPathsPreservesHierarchy(t *testing.T) {
+	root := t.TempDir()
+	writeFolderTestFile(t, root, "202608/20260803/20260803.md", "# 20260803\n")
+	writeFolderTestFile(t, root, "202608/20260817/src/image.png", "image")
+	writeFolderTestFile(t, root, "202609/202609.md", "# 202609\n")
+	writeFolderTestFile(t, root, "Quire.md", "# Quire\n")
+	if err := os.MkdirAll(filepath.Join(root, "202610"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := []string{
+		filepath.Join(root, "202608"),
+		filepath.Join(root, "202609"),
+		filepath.Join(root, "202610"),
+		filepath.Join(root, "Quire.md"),
+	}
+	doc, info, err := buildMDZDocumentFromPaths(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.SelectionCount != 4 {
+		t.Fatalf("SelectionCount = %d, want 4", info.SelectionCount)
+	}
+	if info.MarkdownCount != 3 {
+		t.Fatalf("MarkdownCount = %d, want 3", info.MarkdownCount)
+	}
+	if !info.Directory {
+		t.Fatal("Directory = false, want true")
+	}
+	for _, name := range []string{
+		"202608/20260803/20260803.md",
+		"202608/20260817/src/image.png",
+		"202609/202609.md",
+		"Quire.md",
+	} {
+		if _, ok := doc.Files[name]; !ok {
+			t.Fatalf("%s was not imported with its hierarchy", name)
+		}
+	}
+}
+
+func TestBuildMDZDocumentFromPathsAllowsEmptySelectedFolder(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "empty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFolderTestFile(t, root, "notes/a.md", "# A\n")
+
+	_, info, err := buildMDZDocumentFromPaths([]string{
+		filepath.Join(root, "empty"),
+		filepath.Join(root, "notes"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.MarkdownCount != 1 {
+		t.Fatalf("MarkdownCount = %d, want 1", info.MarkdownCount)
+	}
+}
+
+func TestBuildMDZDocumentFromFolderKeepsFolderContentsAtRoot(t *testing.T) {
+	root := t.TempDir()
+	folder := filepath.Join(root, "notes")
+	writeFolderTestFile(t, root, "notes/child/a.md", "# A\n")
+
+	doc, _, err := buildMDZDocumentFromFolder(folder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := doc.Files["child/a.md"]; !ok {
+		t.Fatal("single folder contents must stay relative to the selected folder")
+	}
+	if _, ok := doc.Files["notes/child/a.md"]; ok {
+		t.Fatal("single folder must not add an extra top-level folder")
+	}
+}
