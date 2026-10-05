@@ -34,7 +34,7 @@ interface NavigationEntry { page: string; ratio: number }
 interface NativeScrollState { ratio: number; topLine: number; totalLines: number; windowLines: number }
 interface PreviewTablePosition extends MarkdownTableRange { topRatio: number; bottomRatio: number }
 interface PresentationState {id:string;slides?:Array<Slide & {html:string}>;index:number;fullscreen:boolean;ready:boolean;closed:boolean}
-interface MarkdownFolderInfo { path:string; name:string; markdownCount:number; fileCount:number; directory:boolean }
+interface MarkdownFolderInfo { path:string; name:string; markdownCount:number; fileCount:number; directory:boolean; selectionCount:number }
 interface Backend {
 	CheckDependencies(nvimPath:string,initPath:string,mdbookPath:string):Promise<Dependency[]>; CheckDiagramDependencies(mermaidPath:string,javaPath:string,plantUMLJar:string,katexPath:string):Promise<Dependency[]>;
 	StartPresentation(slides:Array<Slide & {html:string}>,index:number):Promise<PresentationState>; PresentationState():Promise<PresentationState>; PresentationCommand(command:string,index:number):Promise<void>;StopPresentation():Promise<void>;
@@ -44,7 +44,7 @@ interface Backend {
 	RenameBook(revision: string, title: string): Promise<void>; GetBookConfiguration(): Promise<{text: string; revision: string}>; SaveBookConfiguration(revision: string, text: string): Promise<void>;
 	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; NewBlankDocument(kind: string): Promise<boolean>; DocumentTemplates(): Promise<DocumentTemplate[]>; NewDocumentFromTemplate(templateID: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
 	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>; LogDiagnostic(message: string): Promise<void>;
-	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; MarkdownFolderInfo(path: string): Promise<MarkdownFolderInfo>; CreateMDZFromFolder(path: string): Promise<string>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
+	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; MarkdownFolderInfo(path: string): Promise<MarkdownFolderInfo>; MarkdownPathsInfo(paths: string[]): Promise<MarkdownFolderInfo>; CreateMDZFromFolder(path: string): Promise<string>; CreateMDZFromPaths(paths: string[]): Promise<string>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>; UserTemplates(): Promise<UserTemplate[]>; SaveUserTemplate(template: UserTemplate): Promise<UserTemplate>; DeleteUserTemplate(id: string): Promise<void>;
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; RenderMath(source:string, display:boolean): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>; DocumentDiagnostics(): Promise<DocumentDiagnostic[]>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
@@ -1300,8 +1300,7 @@ function restoreWorkspaceFromWelcome(): void {
 element('new').onclick = () => runCommand('document.new');
 element('welcome-back').onclick = restoreWorkspaceFromWelcome;
 element('welcome-open').onclick = () => runCommand('document.open');
-async function createMDZFromFolder(folder: string): Promise<void> {
-	const filename = await api.CreateMDZFromFolder(folder);
+async function openGeneratedMDZ(filename: string): Promise<void> {
 	if (!filename) return;
 	if (state?.id) {
 		await api.OpenInNewWindow(filename);
@@ -1312,6 +1311,12 @@ async function createMDZFromFolder(folder: string): Promise<void> {
 		await reload();
 		status(`${filename.split(/[\\/]/).pop()} を生成して開きました`);
 	}
+}
+async function createMDZFromFolder(folder: string): Promise<void> {
+	await openGeneratedMDZ(await api.CreateMDZFromFolder(folder));
+}
+async function createMDZFromPaths(paths: string[]): Promise<void> {
+	await openGeneratedMDZ(await api.CreateMDZFromPaths(paths));
 }
 element('welcome-folder-mdz').onclick = () => void action(() => createMDZFromFolder(''));
 element('welcome-recovery').onclick = () => runCommand('recovery.open');
@@ -2411,32 +2416,32 @@ document.addEventListener('load', event => {
 }, true);
 document.querySelectorAll<HTMLIFrameElement>('iframe').forEach(installIframeFileDropBridge);
 const folderMDZDialog = element<HTMLDialogElement>('folder-mdz-dialog');
-let pendingFolderMDZ = '';
-function showFolderMDZDialog(info: MarkdownFolderInfo): void {
-	pendingFolderMDZ = info.path;
-	element('folder-mdz-name').textContent = info.name;
-	element('folder-mdz-summary').textContent = `Markdown ${info.markdownCount}件、同梱ファイル ${info.fileCount}件を検出しました。`;
+let pendingFolderMDZPaths: string[] = [];
+function showFolderMDZDialog(info: MarkdownFolderInfo, paths: string[]): void {
+	pendingFolderMDZPaths = [...paths];
+	element('folder-mdz-name').textContent = info.selectionCount > 1 ? `${info.selectionCount}個の選択項目` : info.name;
+	element('folder-mdz-summary').textContent = `Markdown ${info.markdownCount}件、格納対象ファイル ${info.fileCount}件を検出しました。`;
 	showAppDialog(folderMDZDialog);
 }
 async function handleDroppedFolder(paths: string[]): Promise<boolean> {
-	for (const path of paths) {
-		const info = await api.MarkdownFolderInfo(path);
-		if (!info.directory) continue;
-		if (!info.markdownCount) {
-			status(`${info.name} の配下にMarkdownがありません`, true);
-			return true;
-		}
-		showFolderMDZDialog(info);
+	const info = await api.MarkdownPathsInfo(paths);
+	if (!info.directory) return false;
+	if (!info.markdownCount) {
+		status('選択項目の配下にMarkdownがありません', true);
 		return true;
 	}
-	return false;
+	showFolderMDZDialog(info, paths);
+	return true;
 }
-element('folder-mdz-cancel').onclick = () => folderMDZDialog.close();
-element('folder-mdz-create').onclick = () => {
-	const folder = pendingFolderMDZ;
-	pendingFolderMDZ = '';
+element('folder-mdz-cancel').onclick = () => {
+	pendingFolderMDZPaths = [];
 	folderMDZDialog.close();
-	if (folder) void action(() => createMDZFromFolder(folder));
+};
+element('folder-mdz-create').onclick = () => {
+	const paths = pendingFolderMDZPaths;
+	pendingFolderMDZPaths = [];
+	folderMDZDialog.close();
+	if (paths.length) void action(() => createMDZFromPaths(paths));
 };
 // WebViewのドロップ処理を登録します。フォルダはMDZ生成確認へ進め、文書一覧へのMarkdownは取り込み、それ以外の文書は別ウィンドウで開きます。
 function handleDroppedPaths(x: number, y: number, paths: string[]): void {
