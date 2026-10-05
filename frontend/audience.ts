@@ -1,8 +1,13 @@
 interface AudienceState {id:string;slides?:unknown[];theme:string;aspect:string;marginColor:string;pageNumberEnabled:boolean;pageNumberPosition:string;pageNumberStart:number;index:number;fullscreen:boolean;closed:boolean}
-interface AudienceAPI {Poll(withSlides:boolean):Promise<AudienceState>;Control(command:string,index:number):Promise<void>;Close():void;Fullscreen(active:boolean):void}
+interface AudienceAPI {Poll(withSlides:boolean):Promise<AudienceState>;Control(command:string,index:number):Promise<void>;Close():void;Minimise():void;ToggleMaximise():void;Fullscreen(active:boolean):void}
 const api=(window as unknown as {go:{main:{AudienceWindow:AudienceAPI}}}).go.main.AudienceWindow;
 const frame=document.getElementById('audience-frame') as HTMLIFrameElement;
 const connection=document.getElementById('connection')!;
+const titlebar=document.getElementById('audience-titlebar')!;
+document.getElementById('audience-minimise')!.addEventListener('click',()=>api.Minimise());
+document.getElementById('audience-maximise')!.addEventListener('click',()=>api.ToggleMaximise());
+document.getElementById('audience-close')!.addEventListener('click',()=>api.Close());
+titlebar.addEventListener('dblclick',event=>{if(!(event.target as HTMLElement).closest('button'))api.ToggleMaximise()});
 let data:AudienceState|undefined, frameReady=false, loaded=false, applying=false, fullscreen=false, failures=0, localIndex=-1;
 const token=1;
 function sendDeck():void {
@@ -29,7 +34,7 @@ async function poll():Promise<void>{
 		const next=await api.Poll(!data);failures=0;
 		if(next.closed){api.Close();return}
 		if(!data){data=next;localIndex=next.index;sendDeck()}
-		if(next.fullscreen!==fullscreen){fullscreen=next.fullscreen;api.Fullscreen(fullscreen)}
+		if(next.fullscreen!==fullscreen){fullscreen=next.fullscreen;document.body.classList.toggle('fullscreen',fullscreen);api.Fullscreen(fullscreen)}
 		if(loaded&&next.index!==localIndex){
 			localIndex=next.index;applying=true;
 			frame.contentWindow?.postMessage({type:'mdz-slide-command',command:'goto',index:next.index},location.origin);
