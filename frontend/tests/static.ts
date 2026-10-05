@@ -57,11 +57,14 @@ for (const command of ['navigation.quickOpen','navigation.back','navigation.forw
 	assert(commandIDs.includes(command), `missing navigation command ${command}`);
 }
 
-const diagnosticsIDs = ['document-diagnostics-dialog','document-diagnostics-title','document-diagnostics-summary','document-diagnostics-results'];
+const diagnosticsIDs = ['document-diagnostics-dialog','document-diagnostics-title','document-diagnostics-summary','document-diagnostics-results','log-panel','log-output','log-panel-close'];
 for (const id of diagnosticsIDs) {
 	assert.equal(ids.filter(value => value === id).length, 1, `document diagnostics id ${id}`);
 }
 assert(commandIDs.includes('document.diagnostics'), 'missing document diagnostics command');
+assert(app.includes('api.DiagnosticLog()'), 'diagnostic log drawer does not load the log');
+assert(app.includes('api.LogStatus(message, error)'), 'status messages are not written to the diagnostic log');
+assert(style.includes('#log-panel.open'), 'diagnostic log drawer open style is missing');
 
 const commandizedFeatureCommands = [
 	'image.add',
