@@ -98,8 +98,13 @@ try {
 			const settingsBounds=await page.locator('#settings-dialog').boundingBox();
 			assert(settingsBounds && Math.abs(settingsBounds.x-56)<2 && Math.abs(settingsBounds.y-34)<2,'settings screen must start below titlebar and after rail');
 			assert.equal(await page.locator('#settings-dialog').evaluate(node=>getComputedStyle(node).transform),'none');
-			const expectedSettingsColumns=await page.evaluate(()=>innerWidth<=850?'1':'2');
-			assert.equal(await page.locator('#settings-form').evaluate(node=>getComputedStyle(node).columnCount),expectedSettingsColumns);
+			assert.equal(await page.locator('.settings-layout').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length),2);
+			assert.equal(await page.locator('[data-settings-category=appearance]').getAttribute('aria-pressed'),'true');
+			assert.equal(await page.locator('[data-settings-panel=appearance]').isVisible(),true);
+			await page.locator('[data-settings-category=editor]').click();
+			assert.equal(await page.locator('[data-settings-panel=editor]').isVisible(),true);
+			assert.equal(await page.locator('[data-settings-panel=appearance]').isVisible(),false);
+			await page.locator('[data-settings-category=appearance]').click();
 			await page.locator('[name=theme]').selectOption(theme);
 			await page.locator('[name=accent]').selectOption(accent);
 			await page.locator('#settings-save').click(); await ready();
