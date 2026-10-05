@@ -1,6 +1,6 @@
 import { History, TextState } from './history.js';
 import { NativeView } from './nvim.js';
-import { WysiwygEditor, equivalentRenderedHTML, markdownFromRenderedHTML, renderedHTMLHasOmittedRawHTML } from './wysiwyg.js';
+import { WysiwygEditor, markdownFromRenderedHTML, renderedHTMLDifference, renderedHTMLHasOmittedRawHTML, type RenderedHTMLDifference } from './wysiwyg.js';
 import { CommandRegistry } from './commands.js';
 import { findMarkdownTableRanges, mapAnchoredScrollRatio, type MarkdownTableRange, type ScrollRatioAnchor } from './scroll-sync.js';
 type DocumentType = 'markdown' | 'mdz' | 'mdbook' | 'slides';
@@ -117,6 +117,7 @@ let composing = false;
 let compositionBefore: TextState | undefined;
 let activeEngine: EditorEngine = 'builtin';
 let lastAppliedEngine: EditorEngine | '' = '';
+let wysiwygCompatibilityIssue = '';
 let nativeCanUndo = false;
 let nativeCanRedo = false;
 let scrollSyncLocked = false;
@@ -533,7 +534,7 @@ async function selectPage(name: string, options: {record?: boolean; ratio?: numb
 	current = name; editor.value = text; changed = false; beforeInput = undefined;
 	if (editing && activeEngine === 'wysiwyg' && !(await loadWysiwyg())) {
 		activeEngine = 'builtin'; applyEditor();
-		status('このMarkdownはリッチ編集で安全に往復できない構文を含むため、Markdownエディターで開きました', true);
+		status(`このMarkdownはリッチ編集で安全に往復できないため、Markdownエディターで開きました${wysiwygCompatibilityIssue ? `（${wysiwygCompatibilityIssue}）` : ''}`, true);
 	}
 	markdownHeadingPage = '';
 	markdownHeadings = [];
@@ -550,7 +551,25 @@ function initialEditorEngine(): EditorEngine {
 	if (cfg.editor === 'wysiwyg' && !supportsWysiwyg()) return 'builtin';
 	return cfg.editor;
 }
+function wysiwygSourceLine(markdown: string, difference: RenderedHTMLDifference): {line:number; text:string} | null {
+	const lines = markdown.split(/\r?\n/);
+	const text = difference.text.replace(/\s+/g, ' ').trim();
+	const needles = [difference.tag !== '#text' && difference.tag !== 'body' ? `<${difference.tag}` : '', text ? text.slice(0, 48) : ''].filter(Boolean);
+	for (const needle of needles) {
+		const index = lines.findIndex(line => line.includes(needle));
+		if (index >= 0) return {line:index + 1, text:lines[index].trim().slice(0, 240)};
+	}
+	return null;
+}
+function reportWysiwygCompatibilityIssue(markdown: string, difference: RenderedHTMLDifference): void {
+	const source = wysiwygSourceLine(markdown, difference);
+	wysiwygCompatibilityIssue = `${source ? `${source.line}行目: ` : ''}${difference.reason}`;
+	const location = source ? `${current}:${source.line}` : current || '(現在ページ)';
+	const syntax = source?.text || difference.before;
+	console.warn(`[HatoNote][リッチ編集] 往復変換互換性エラー ${location}\n該当構文: ${syntax}\nDOM: ${difference.path}\n変換前: ${difference.before}\n変換後: ${difference.after}`);
+}
 async function loadWysiwyg(): Promise<boolean> {
+	wysiwygCompatibilityIssue = '';
 	if (!supportsWysiwyg()) return false;
 	let renderMarkdown = (text: string): Promise<string> => api.Render(text);
 	if (documentIs('slides')) {
@@ -560,10 +579,20 @@ async function loadWysiwyg(): Promise<boolean> {
 		renderMarkdown = (text: string): Promise<string> => api.RenderSlide(text, slide.layout);
 	}
 	const html = await renderMarkdown(editor.value);
-	if (renderedHTMLHasOmittedRawHTML(html)) return false;
+	if (renderedHTMLHasOmittedRawHTML(html)) {
+		wysiwygCompatibilityIssue = 'Raw HTMLを安全に保持できません';
+		const source = editor.value.split(/\r?\n/).findIndex(line => /<\/?[A-Za-z][^>]*>/.test(line));
+		const syntax = source >= 0 ? `${source + 1}行目: ${editor.value.split(/\r?\n/)[source].trim().slice(0, 240)}` : 'Raw HTML';
+		console.warn(`[HatoNote][リッチ編集] 往復変換互換性エラー ${current || '(現在ページ)'}\n該当構文: ${syntax}`);
+		return false;
+	}
 	const normalized = markdownFromRenderedHTML(html);
 	const rerendered = await renderMarkdown(normalized);
-	if (!equivalentRenderedHTML(html, rerendered)) return false;
+	const difference = renderedHTMLDifference(html, rerendered);
+	if (difference) {
+		reportWysiwygCompatibilityIssue(editor.value, difference);
+		return false;
+	}
 	wysiwyg.load(editor.value, html);
 	applyWysiwygSlideStyle();
 	return true;
@@ -689,7 +718,7 @@ async function switchEditorEngine(requested: EditorEngine): Promise<void> {
 		activeEngine = requested;
 		if (requested === 'wysiwyg' && !(await loadWysiwyg())) {
 			activeEngine = 'builtin'; applyEditor(); await render(); editor.focus({preventScroll:true});
-			status('このMarkdownはリッチ編集で安全に往復できない構文を含むため切り替えませんでした', true);
+			status(`このMarkdownはリッチ編集で安全に往復できないため切り替えませんでした${wysiwygCompatibilityIssue ? `（${wysiwygCompatibilityIssue}）` : ''}`, true);
 			return;
 		}
 		applyEditor(); await render(); requestAnimationFrame(() => syncScroll('state', scrollSyncRatio, true));
