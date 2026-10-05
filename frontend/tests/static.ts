@@ -79,6 +79,7 @@ assert(app.includes("state.pages.length > 1 && state.pages.every(name => !name.i
 assert(app.includes("if (!hasPageView && documentView === 'pages') documentView = 'files';"), 'nested Markdown documents do not fall back to file view');
 assert(app.includes("element<HTMLButtonElement>('pages-tab').hidden = !hasPageView;"), 'page tab is not hidden for nested Markdown documents');
 assert(app.includes("if (name === current && state.pages.includes(name)) appendMarkdownHeadings(nav, depth);"), 'file tree does not show headings under the current Markdown file');
+assert(app.includes("if (view === 'pages' && !pageViewAvailable()) return;"), 'hidden page mode can still be selected for nested Markdown documents');
 assert(app.includes("else renderFileTree(element('pages'));"), 'file tree is not refreshed after Markdown headings are rendered');
 
 const commandizedFeatureCommands = [
