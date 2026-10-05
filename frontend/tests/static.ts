@@ -65,6 +65,12 @@ assert(commandIDs.includes('document.diagnostics'), 'missing document diagnostic
 assert(app.includes('api.DiagnosticLog()'), 'diagnostic log drawer does not load the log');
 assert(app.includes('api.LogStatus(message, error)'), 'status messages are not written to the diagnostic log');
 assert(style.includes('#log-panel.open'), 'diagnostic log drawer open style is missing');
+assert(html.includes('id="window-resize-right"'), 'right edge resize handle is missing');
+assert(app.includes("window.WailsInvoke('resize:e-resize')"), 'right edge handle does not start native resize');
+assert(style.includes('#window-resize-right'), 'right edge resize handle style is missing');
+assert(!html.includes('<h1>HatoNote</h1>'), 'start screen repeats the product name');
+assert(!html.includes('ここに .md / .mdz をドロップ'), 'start screen still has a dedicated drop zone');
+assert(html.includes('.md / .mdz はウィンドウにD&amp;Dして開けます'), 'start screen drag-and-drop hint is missing');
 
 const commandizedFeatureCommands = [
 	'image.add',
