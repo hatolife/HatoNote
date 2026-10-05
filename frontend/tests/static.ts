@@ -31,6 +31,11 @@ const controlNames = [...html.matchAll(/\b(?:input|select)[^>]*\bname="([^"]+)"/
 const missingControls = settingsFields.filter(name => !controlNames.includes(name));
 assert.deepEqual(missingControls, [], 'settings without UI controls');
 
+const settingsCategories = [...html.matchAll(/data-settings-category="([^"]+)"/g)].map(match => match[1]);
+const settingsPanels = [...html.matchAll(/data-settings-panel="([^"]+)"/g)].map(match => match[1]);
+assert.deepEqual(settingsCategories, ['appearance','mdbook','editor','images','templates','markdown','diagrams','storage'], 'settings categories');
+assert.deepEqual(settingsPanels, settingsCategories, 'settings category panels');
+
 const userTemplateIDs = [
 	'user-template-list',
 	'user-template-scope',
