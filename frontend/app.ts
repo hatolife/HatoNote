@@ -143,7 +143,7 @@ let tocReturnPage = '';
 let configRevision = '';
 let tocOperation = '';
 let selectedTocName = '';
-const collapsed = new Set<string>();
+const folderExpansionOverrides = new Map<string, boolean>();
 const histories = new Map<string, History>();
 let beforeInput: TextState | undefined;
 let slidesInfo: SlidesInfo | undefined;
@@ -451,7 +451,7 @@ function appendMarkdownHeadings(nav: HTMLElement): void {
 		b.dataset.headingId = heading.id;
 		b.classList.toggle('active-heading', heading.id === activeMarkdownHeading);
 		if (heading.id === activeMarkdownHeading) b.setAttribute('aria-current','location');
-		b.textContent = heading.text;
+		b.textContent = `${'#'.repeat(heading.level)} ${heading.text}`;
 		b.title = `${'#'.repeat(heading.level)} ${heading.text}`;
 		b.style.paddingLeft = `${28 + (heading.level - 1) * 14}px`;
 		b.onclick = () => scrollToMarkdownHeading(heading.id);
@@ -513,11 +513,18 @@ async function refreshSidebar(): Promise<void> {
 		const folders = new Set<string>();
 		const files = [...state.pages, ...state.assets];
 		for (const name of files) { const parts = name.split('/'); for (let i=1;i<parts.length;i++) folders.add(parts.slice(0,i).join('/')); }
+		const currentFolders = new Set<string>();
+		{
+			const parts = current.split('/');
+			for (let i=1;i<parts.length;i++) currentFolders.add(parts.slice(0,i).join('/'));
+		}
+		const expanded = (folder: string): boolean => folderExpansionOverrides.get(folder) ?? currentFolders.has(folder);
 		const walk = (parent: string, depth: number): void => {
 			const children = [...folders].filter(p => p.split('/').slice(0,-1).join('/') === parent).sort();
 			for (const folder of children) {
-				const b = document.createElement('button'); b.textContent = (collapsed.has(folder) ? '▸ ' : '▾ ') + folder.split('/').pop(); b.style.paddingLeft = `${10+depth*16}px`; b.setAttribute('aria-expanded', String(!collapsed.has(folder))); b.onclick = () => { if(collapsed.has(folder)) collapsed.delete(folder); else collapsed.add(folder); void refreshSidebar(); }; nav.append(b);
-				if (!collapsed.has(folder)) walk(folder,depth+1);
+				const open = expanded(folder);
+				const b = document.createElement('button'); b.textContent = (open ? '▾ ' : '▸ ') + folder.split('/').pop() + '/'; b.style.paddingLeft = `${10+depth*16}px`; b.setAttribute('aria-expanded', String(open)); b.onclick = () => { folderExpansionOverrides.set(folder, !expanded(folder)); void refreshSidebar(); }; nav.append(b);
+				if (open) walk(folder,depth+1);
 			}
 			for (const name of files.filter(p => p.split('/').slice(0,-1).join('/') === parent).sort()) addFileButton(nav,name,name.split('/').pop()!,depth);
 		}; walk('',0);
@@ -700,7 +707,7 @@ async function reload(startEditing = false): Promise<void> {
 	element<HTMLIFrameElement>('book-preview').src='about:blank'; element('book-preview').hidden=true; preview.hidden=false;
 	closePresentation(); slideFrame.hidden=true; slidesInfo=undefined;
 	if (currentSession !== state.id) {
-		histories.clear(); collapsed.clear(); native.reset(); scrollPositions.clear(); navigationBack=[]; navigationForward=[];
+		histories.clear(); folderExpansionOverrides.clear(); native.reset(); scrollPositions.clear(); navigationBack=[]; navigationForward=[];
 		scrollSyncRatio = 0; current = ''; currentSession = state.id; activeEngine = 'builtin'; lastAppliedEngine = '';
 	}
 	element('welcome').hidden = !!state.id; element('workspace').hidden = !state.id; element('editing').hidden = !state.id;
