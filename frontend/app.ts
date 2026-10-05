@@ -49,7 +49,7 @@ interface Backend {
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; RenderMath(source:string, display:boolean): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>; DocumentDiagnostics(): Promise<DocumentDiagnostic[]>;
 	Settings(): Promise<Settings>; Configure(settings: Settings): Promise<void>; AutoSave(): Promise<boolean>;
 	References(): Promise<ReferenceSet>; SaveReference(reference: ReferenceItem): Promise<ReferenceItem>; DeleteReference(id: string): Promise<void>; ApplyReferences(page: string): Promise<string>;
-	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; ChooseMermaid(): Promise<string>; ChooseJava(): Promise<string>; ChoosePlantUMLJar(): Promise<string>; ChooseKatex(): Promise<string>; OpenDataFolder(): Promise<void>;
+	ChooseExecutable(): Promise<string>; ChooseInit(): Promise<string>; ChooseMermaid(): Promise<string>; ChooseJava(): Promise<string>; ChoosePlantUMLJar(): Promise<string>; ChooseKatex(): Promise<string>; OpenDataFolder(): Promise<void> LogStatus(message: string, isError: boolean): Promise<void>; DiagnosticLog(): Promise<string>;
 	Recoveries(): Promise<Recovery[]>; Recover(id: string): Promise<boolean>; History(): Promise<HistoryEntry[]>; HistoryDiff(id: string): Promise<HistoryPageDiff[]>; CreateNamedVersion(name: string): Promise<HistoryEntry>; RestoreHistory(id: string): Promise<boolean>;
 	StartNative(): Promise<boolean>; NativeOpen(name: string): Promise<void>;
 	NativePoll(): Promise<{name: string; text: string; changed: boolean; canUndo: boolean; canRedo: boolean}>;
@@ -174,7 +174,70 @@ const wysiwyg = new WysiwygEditor(wysiwygRoot, wysiwygContent, wysiwygToolbar, w
 	resolveImage: reference => resolveEditorImage(reference),
 });
 
-function status(message: string, error = false): void { element('status').textContent = message; element('status').title = message; element('status').classList.toggle('error', error); }
+const statusControl = element<HTMLButtonElement>('status');
+const logPanel = element<HTMLElement>('log-panel');
+const logOutput = element<HTMLElement>('log-output');
+let statusLogPending: Promise<void> = Promise.resolve();
+let logCloseTimer = 0;
+let logTransitionTimer = 0;
+
+function status(message: string, error = false): void {
+	statusControl.textContent = message;
+	statusControl.title = message;
+	statusControl.classList.toggle('error', error);
+	statusLogPending = statusLogPending.then(() => api.LogStatus(message, error)).catch(() => {});
+}
+
+function cancelLogPanelClose(): void {
+	window.clearTimeout(logCloseTimer);
+	logCloseTimer = 0;
+}
+
+function closeLogPanel(): void {
+	cancelLogPanelClose();
+	window.clearTimeout(logTransitionTimer);
+	logPanel.classList.remove('open');
+	logPanel.setAttribute('aria-hidden', 'true');
+	statusControl.setAttribute('aria-expanded', 'false');
+	logTransitionTimer = window.setTimeout(() => { logPanel.hidden = true; }, 180);
+}
+
+function scheduleLogPanelClose(): void {
+	cancelLogPanelClose();
+	logCloseTimer = window.setTimeout(closeLogPanel, 1400);
+}
+
+async function openLogPanel(): Promise<void> {
+	cancelLogPanelClose();
+	window.clearTimeout(logTransitionTimer);
+	logPanel.hidden = false;
+	logPanel.setAttribute('aria-hidden', 'false');
+	statusControl.setAttribute('aria-expanded', 'true');
+	logOutput.textContent = '診断ログを読み込んでいます…';
+	requestAnimationFrame(() => logPanel.classList.add('open'));
+	try {
+		await statusLogPending;
+		const text = await api.DiagnosticLog();
+		logOutput.textContent = text.trimEnd() || '診断ログはまだありません。';
+	} catch (error) {
+		logOutput.textContent = '診断ログを読み込めません: ' + String(error);
+	}
+	logOutput.scrollTop = logOutput.scrollHeight;
+}
+
+statusControl.onclick = () => {
+	if (logPanel.classList.contains('open')) closeLogPanel();
+	else void openLogPanel();
+};
+statusControl.addEventListener('pointerenter', cancelLogPanelClose);
+statusControl.addEventListener('pointerleave', scheduleLogPanelClose);
+logPanel.addEventListener('pointerenter', cancelLogPanelClose);
+logPanel.addEventListener('pointerleave', scheduleLogPanelClose);
+element('log-panel-close').onclick = closeLogPanel;
+window.addEventListener('keydown', event => {
+	if (event.key !== 'Escape' || event.defaultPrevented || logPanel.hidden) return;
+	closeLogPanel();
+});
 function runCommand(id: string): void {
 	void commands.execute(id).then(executed => {
 		if (!executed || !macroRecording || macroPlaying || id.startsWith('macro.')) return;
