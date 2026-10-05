@@ -49,7 +49,7 @@ func runAudience(endpoint string) error {
 		return err
 	}
 	a := &AudienceWindow{endpoint: endpoint, client: &http.Client{Timeout: 3 * time.Second}}
-	return wails.Run(&options.App{Title: "HatoNote — 投影用（F: 全画面 / Esc / 右クリック: 発表終了）", Width: 960, Height: 600, MinWidth: 320, MinHeight: 240,
+	return wails.Run(&options.App{Frameless: true, Title: "HatoNote — 投影用（F: 全画面 / Esc / 右クリック: 発表終了）", Width: 960, Height: 600, MinWidth: 320, MinHeight: 240,
 		AssetServer: &assetserver.Options{Assets: audienceFiles{root}, Handler: http.HandlerFunc(a.serveAsset)},
 		Windows:     &windows.Options{WebviewUserDataPath: filepath.Join(cache, "HatoNote", "WebView2-Audience")},
 		OnStartup:   func(ctx context.Context) { a.ctx = ctx }, OnShutdown: func(context.Context) { _ = a.Control("closed", 0) }, Bind: []interface{}{a}})
@@ -86,6 +86,8 @@ func (a *AudienceWindow) Control(command string, index int) error {
 	return nil
 }
 func (a *AudienceWindow) Close() { runtime.Quit(a.ctx) }
+func (a *AudienceWindow) Minimise() { runtime.WindowMinimise(a.ctx) }
+func (a *AudienceWindow) ToggleMaximise() { runtime.WindowToggleMaximise(a.ctx) }
 func (a *AudienceWindow) Fullscreen(active bool) {
 	if active {
 		runtime.WindowFullscreen(a.ctx)
