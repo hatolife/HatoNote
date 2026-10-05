@@ -960,3 +960,18 @@ footer #status:hover { background: transparent; color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
 	#log-panel { transition: none; }
 }
+
+
+/* 本文領域の右端でもウィンドウをリサイズできるようにします。 */
+#window-resize-right {
+	position: fixed;
+	z-index: 4003;
+	top: 34px;
+	right: 0;
+	bottom: 28px;
+	width: 6px;
+	cursor: e-resize;
+	background: transparent;
+	--wails-draggable: no-drag;
+}
+body.presentation-active #window-resize-right { display: none; }
