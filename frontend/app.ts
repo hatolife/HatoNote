@@ -56,7 +56,7 @@ interface Backend {
 	NativeInput(keys: string): Promise<void>; NativePaste(text: string): Promise<void>; NativeUndo(redo: boolean): Promise<void>;
 	NativeResize(cols: number, rows: number): Promise<void>; NativeScroll(ratio: number): Promise<void>; NativeMouse(button: string, action: string, modifier: string, row: number, col: number): Promise<void>;
 }
-declare global { interface Window { go: { main: { App: Backend } }; runtime: { OnFileDrop(callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean): void; ResolveFilePaths?(x: number, y: number, files: File[]): void; EventsOn(event: string, callback: (...args: any[]) => void): void; BrowserOpenURL(url: string): void; WindowMinimise?(): void; WindowToggleMaximise?(): void; Quit?(): void; WindowFullscreen?(): void; WindowUnfullscreen?(): void; WindowIsFullscreen?(): Promise<boolean> } } }
+declare global { interface Window { WailsInvoke?(message: string): void; go: { main: { App: Backend } }; runtime: { OnFileDrop(callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean): void; ResolveFilePaths?(x: number, y: number, files: File[]): void; EventsOn(event: string, callback: (...args: any[]) => void): void; BrowserOpenURL(url: string): void; WindowMinimise?(): void; WindowToggleMaximise?(): void; Quit?(): void; WindowFullscreen?(): void; WindowUnfullscreen?(): void; WindowIsFullscreen?(): Promise<boolean> } } }
 const api = window.go.main.App;
 const commands = new CommandRegistry();
 const macroStorageKey = 'hatonote.macros.v1';
@@ -894,6 +894,13 @@ element('window-close').onclick = () => window.runtime.Quit?.();
 element('titlebar').ondblclick = event => {
 	if ((event.target as Element).closest('#window-controls')) return;
 	window.runtime.WindowToggleMaximise?.();
+};
+const windowResizeRight = element<HTMLElement>('window-resize-right');
+windowResizeRight.onmousedown = event => {
+	if (event.button !== 0 || !window.WailsInvoke) return;
+	event.preventDefault();
+	event.stopPropagation();
+	window.WailsInvoke('resize:e-resize');
 };
 element('sidebar-toggle').onclick = () => { const hide = !element('sidebar').hidden; element('sidebar').hidden=hide; element('sidebar-resizer').hidden=hide; element('sidebar-toggle').setAttribute('aria-expanded',String(!hide)); native.resize(); };
 element('preview-kind').onchange = () => void action(async () => {
