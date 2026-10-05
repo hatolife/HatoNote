@@ -2870,7 +2870,7 @@ let presentationFocus: HTMLElement | null = null;
 let presentationOwnsFullscreen = false;
 function closePresentation(): void {
 	const overlay=element('presentation');if(overlay.hidden)return;
-	overlay.hidden=true;
+	overlay.hidden=true;document.body.classList.remove('presentation-active');
 	if(presentationOwnsFullscreen) { window.runtime.WindowUnfullscreen?.(); presentationOwnsFullscreen=false; }
 	if(document.fullscreenElement===overlay) void document.exitFullscreen().catch(()=>{});
 	framePayloads.delete(presentationFrame); ++presentationToken;
@@ -2881,7 +2881,7 @@ function closePresentation(): void {
 async function openPresentation(first: boolean): Promise<void> {
 	if(!slidesInfo || busy)return;
 	presentationFocus=document.activeElement as HTMLElement;
-	const overlay=element('presentation');overlay.hidden=false;overlay.focus();
+	const overlay=element('presentation');overlay.hidden=false;document.body.classList.add('presentation-active');overlay.focus();
 	// デスクトップ版はタイトルバーも含めて全画面化し、終了時に元の状態へ戻します。
 	const nativeFullscreen = window.runtime.WindowFullscreen && window.runtime.WindowUnfullscreen && window.runtime.WindowIsFullscreen;
 	const fullscreen = nativeFullscreen ? window.runtime.WindowIsFullscreen!().then(active=>{
