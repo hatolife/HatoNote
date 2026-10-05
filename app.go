@@ -102,6 +102,15 @@ func (a *App) emit(event string, data any) {
 func (a *App) Initial() string { return a.initial }
 func (a *App) Version() string { return version }
 
+// LogDiagnostic はフロントエンドで検出した診断情報を永続ログへ記録します。
+func (a *App) LogDiagnostic(message string) {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return
+	}
+	log.Printf("frontend: %s", message)
+}
+
 func (a *App) documentTypeLocked() document.Type {
 	if a.session == nil {
 		return ""
