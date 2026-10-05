@@ -1636,6 +1636,17 @@ async function refreshTemplateChoices(): Promise<void> {
 }
 
 const settingsDialog = element<HTMLDialogElement>('settings-dialog');
+const settingsCategoryButtons = [...settingsDialog.querySelectorAll<HTMLButtonElement>('[data-settings-category]')];
+const settingsPanels = [...settingsDialog.querySelectorAll<HTMLElement>('[data-settings-panel]')];
+function selectSettingsCategory(category: string): void {
+	for (const button of settingsCategoryButtons) {
+		const selected = button.dataset.settingsCategory === category;
+		button.classList.toggle('selected', selected);
+		button.setAttribute('aria-pressed', String(selected));
+	}
+	for (const panel of settingsPanels) panel.hidden = panel.dataset.settingsPanel !== category;
+}
+for (const button of settingsCategoryButtons) button.onclick = () => selectSettingsCategory(button.dataset.settingsCategory || 'appearance');
 const cheatsheetDialog = element<HTMLDialogElement>('markdown-cheatsheet-dialog');
 function showMarkdownCheatsheet(): void {
 	if (!editing) return;
@@ -1646,6 +1657,7 @@ function showMarkdownCheatsheet(): void {
 	showAppDialog(cheatsheetDialog);
 }
 function showSettings(): void {
+	selectSettingsCategory('appearance');
 	element('settings-error').textContent = '';
 	element('settings-version').textContent = appVersion || '取得中';
 	detectedInitPath = '';
@@ -1736,7 +1748,14 @@ element('user-template-delete').onclick = () => void action(async () => {
 });
 
 element('settings-save').onclick = () => {
-	if (!element<HTMLFormElement>('settings-form').reportValidity()) return;
+	const form = element<HTMLFormElement>('settings-form');
+	if (!form.checkValidity()) {
+		const invalid = form.querySelector<HTMLElement>(':invalid');
+		const panel = invalid?.closest<HTMLElement>('[data-settings-panel]');
+		if (panel?.dataset.settingsPanel) selectSettingsCategory(panel.dataset.settingsPanel);
+		form.reportValidity();
+		return;
+	}
 	const next = { ...cfg };
 	for (const [key, value] of Object.entries(cfg)) {
 		const control = settingsDialog.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${key}"]`);
