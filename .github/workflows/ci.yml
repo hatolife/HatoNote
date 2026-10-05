@@ -48,5 +48,8 @@ jobs:
       - name: Test frontend structure
         run: npm run test:static --prefix frontend
 
+      - name: Test scroll sync
+        run: npm run test:scroll --prefix frontend
+
       - name: Test Go
         run: go test ./... -timeout 120s
