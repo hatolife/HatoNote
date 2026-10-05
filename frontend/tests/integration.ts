@@ -11,7 +11,7 @@ const rpc=async(name,...args)=>{const r=await fetch(url+'/rpc/'+name,{method:'PO
 (async()=>{
 const browser=await chromium.launch({headless:true,executablePath:process.env.MDZ_CHROMIUM || undefined,args:['--no-sandbox','--disable-gpu','--no-zygote']});
 const page=await browser.newPage({viewport:{width:1280,height:860}});
-const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const errors=[];const warnings=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',message=>{if(message.type()==='warning')warnings.push(message.text())});
 await page.addInitScript(()=>{
 if(window.top!==window) return;
 const listeners={};window.go={main:{App:new Proxy({},{get:(_,name)=>async(...args)=>{const r=await fetch('/rpc/'+name,{method:'POST',body:JSON.stringify(args)});if(!r.ok)throw new Error(await r.text());return r.json()}})}};
@@ -120,6 +120,13 @@ await page.waitForFunction(()=>{const frame=document.querySelector('#preview') a
 await page.evaluate(()=>{const frame=document.querySelector('#preview') as HTMLIFrameElement;frame.contentWindow?.scrollTo(0,0);});
 await page.waitForFunction(()=>{const editor=document.querySelector('#editor') as HTMLTextAreaElement;return editor.scrollTop<2;});
 assert.equal(await page.locator('#editor-engine [data-engine=wysiwyg]').isVisible(),true);
+const richSafeMarkdown=await edit.inputValue();
+await edit.fill('<h1 id="custom-rich-heading">編集テスト</h1>\n');
+await page.locator('#editor-engine [data-engine=wysiwyg]').click();
+await page.waitForFunction(()=>document.querySelector('#editor-engine [data-engine=builtin]')?.getAttribute('aria-pressed')==='true'&&document.querySelector('#status')?.textContent?.includes('属性 id が変化しました'));
+assert((await page.locator('#status').textContent())?.includes('1行目'));
+assert(warnings.some(message=>message.includes('該当構文: <h1 id="custom-rich-heading">編集テスト</h1>')&&message.includes('属性 id が変化しました')));
+await edit.fill(richSafeMarkdown);
 await page.locator('#editor-engine [data-engine=wysiwyg]').click();
 await page.waitForFunction(()=>document.querySelector('#editor-engine [data-engine=wysiwyg]')?.getAttribute('aria-pressed')==='true'&&!document.querySelector('#wysiwyg').hidden);
 assert.equal(await page.locator('#editor').isHidden(),true);
