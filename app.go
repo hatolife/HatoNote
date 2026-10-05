@@ -558,7 +558,29 @@ func (a *App) ChooseExecutable() (string, error) {
 func (a *App) ChooseInit() (string, error) {
 	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{Title: "init.luaを指定", Filters: []runtime.FileFilter{{DisplayName: "Lua設定", Pattern: "*.lua"}}})
 }
-func (a *App) OpenDataFolder()                       { runtime.BrowserOpenURL(a.ctx, a.base) }
+func (a *App) OpenDataFolder() { runtime.BrowserOpenURL(a.ctx, a.base) }
+
+// LogStatus はステータスバーに表示した操作結果を診断ログへ記録します。
+func (a *App) LogStatus(message string, isError bool) {
+	prefix := "status"
+	if isError {
+		prefix = "status-error"
+	}
+	log.Printf("%s: %s", prefix, message)
+}
+
+// DiagnosticLog は現在保持している診断ログを返します。
+func (a *App) DiagnosticLog() (string, error) {
+	data, err := os.ReadFile(filepath.Join(a.base, "HatoNote.log"))
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 func (a *App) Recoveries() ([]workspace.Meta, error) { return workspace.Recoveries(a.base) }
 func (a *App) Recover(id string) (bool, error) {
 	if !a.discardAllowed() {
