@@ -2881,12 +2881,13 @@ function closePresentation(): void {
 async function openPresentation(first: boolean): Promise<void> {
 	if(!slidesInfo || busy)return;
 	presentationFocus=document.activeElement as HTMLElement;
-	const overlay=element('presentation');overlay.hidden=false;document.body.classList.add('presentation-active');overlay.focus();
+	const overlay=element('presentation');overlay.hidden=false;overlay.focus();
 	// デスクトップ版はタイトルバーも含めて全画面化し、終了時に元の状態へ戻します。
 	const nativeFullscreen = window.runtime.WindowFullscreen && window.runtime.WindowUnfullscreen && window.runtime.WindowIsFullscreen;
 	const fullscreen = nativeFullscreen ? window.runtime.WindowIsFullscreen!().then(active=>{
 		if(!active && !overlay.hidden) { window.runtime.WindowFullscreen!(); presentationOwnsFullscreen=true; }
-	}) : overlay.requestFullscreen();
+		if(!overlay.hidden)document.body.classList.add('presentation-active');
+	}) : overlay.requestFullscreen().then(()=>{if(!overlay.hidden)document.body.classList.add('presentation-active')});
 	void fullscreen.catch(()=>status('全画面化できないため、ウィンドウ内で発表します'));
 	await action(async()=>{
 		try {
