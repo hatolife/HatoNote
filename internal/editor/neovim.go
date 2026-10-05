@@ -33,6 +33,13 @@ type UndoState struct {
 	CanRedo bool `msgpack:"canRedo" json:"canRedo"`
 }
 
+type ScrollState struct {
+	Ratio       float64 `json:"ratio"`
+	TopLine     int     `json:"topLine"`
+	TotalLines  int     `json:"totalLines"`
+	WindowLines int     `json:"windowLines"`
+}
+
 type healthState struct {
 	Mode     string `msgpack:"mode"`
 	Blocking bool   `msgpack:"blocking"`
@@ -90,7 +97,9 @@ func Start(root, undoDir string, cfg settings.Settings, emit func(string, any)) 
 	if err := v.RegisterHandler("mdz_write", func() { e.changed.Store(true); emit("native-save", nil) }); err != nil {
 		return fail(err)
 	}
-	if err := v.RegisterHandler("mdz_scroll", func(ratio float64) { emit("native-scroll", ratio) }); err != nil {
+	if err := v.RegisterHandler("mdz_scroll", func(ratio float64, topLine, totalLines, windowLines int) {
+		emit("native-scroll", ScrollState{Ratio: ratio, TopLine: topLine, TotalLines: totalLines, WindowLines: windowLines})
+	}); err != nil {
 		return fail(err)
 	}
 	if err := v.AttachUI(80, 24, map[string]interface{}{"rgb": true, "ext_linegrid": true}); err != nil {
@@ -136,9 +145,9 @@ local function notify_scroll()
  local height=vim.api.nvim_win_get_height(win)
  local max_top=math.max(1,total-height+1)
  local ratio=max_top>1 and math.max(0,math.min(1,(view.topline-1)/(max_top-1))) or 0
- vim.rpcnotify(channel, 'mdz_scroll', ratio)
+ vim.rpcnotify(channel, 'mdz_scroll', ratio, view.topline, total, height)
 end
-vim.api.nvim_create_autocmd({'WinScrolled','BufEnter'}, {group=group, callback=notify_scroll})
+vim.api.nvim_create_autocmd({'WinScrolled','WinResized','BufEnter'}, {group=group, callback=notify_scroll})
 attach(vim.api.nvim_get_current_buf())
 notify_scroll()
 `, &result, channel, nativeRoot, nativeUndo, cfg.UndoLevels)
