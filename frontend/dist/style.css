@@ -800,12 +800,10 @@ body.settings-screen-open #settings-dialog{position:fixed;left:56px;top:34px;rig
 
 /* 開始画面に新規文書作成を統合します。 */
 #welcome{box-sizing:border-box;display:block;overflow:auto;padding:48px clamp(24px,5vw,72px) 56px;max-width:none;width:100%;justify-content:initial;align-items:initial}
-.welcome-heading{max-width:1180px;margin:0 auto;text-align:center}
-#welcome .welcome-heading h1{font-size:42px;margin:0}
-#welcome .welcome-heading>p{margin:8px 0 0;color:var(--muted)}
-.welcome-actions{display:flex;justify-content:center;gap:10px;margin-top:20px}
-#welcome .drop-hint{box-sizing:border-box;max-width:720px;margin:18px auto 0!important;padding:22px 32px;border:2px dashed var(--line);border-radius:14px}
-.welcome-new-documents{max-width:1180px;margin:34px auto 0}
+.welcome-heading{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px;text-align:left}
+.welcome-actions{display:flex;align-items:center;gap:10px;margin:0}
+#welcome .welcome-drop-note{margin:0;color:var(--muted);font-size:12px}
+.welcome-new-documents{max-width:1180px;margin:26px auto 0}
 .welcome-new-documents>h2{font-size:17px;margin:0 0 12px}
 .welcome-document-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start}
 .welcome-document-column{min-width:0;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
@@ -819,7 +817,7 @@ body.settings-screen-open #settings-dialog{position:fixed;left:56px;top:34px;rig
 #welcome #recent-documents{max-width:720px;margin:28px auto 0}
 #welcome-recovery{display:block;margin:18px auto 0!important}
 @media(max-width:980px){.welcome-document-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:620px){#welcome{padding:28px 16px 40px}.welcome-document-grid{grid-template-columns:1fr}.welcome-actions{flex-wrap:wrap}.welcome-heading .drop-hint{padding:18px}}
+@media(max-width:620px){#welcome{padding:28px 16px 40px}.welcome-document-grid{grid-template-columns:1fr}.welcome-heading{align-items:flex-start;flex-direction:column}.welcome-actions{flex-wrap:wrap}}
 
 
 .history-line-diff{display:grid;border-top:1px solid var(--line);font:11px/1.5 Consolas,monospace;min-width:0}
