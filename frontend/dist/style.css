@@ -887,3 +887,76 @@ body.settings-screen-open #settings-dialog{padding:0;overflow:hidden;background:
 #settings-form .settings-content .dialog-actions{position:sticky;bottom:-30px;margin-top:0;padding:16px 0 0;background:linear-gradient(to bottom,transparent,var(--bg) 28%)}
 @media(max-width:850px){body.settings-screen-open #settings-dialog{left:56px;padding:0}.settings-layout{grid-template-columns:180px minmax(0,1fr)}.settings-content{padding:20px 18px 24px}}
 @media(max-width:700px){.settings-layout{grid-template-columns:160px minmax(0,1fr)}.settings-sidebar{padding-left:8px;padding-right:8px}.settings-sidebar h2{margin-left:6px}.settings-category{padding:8px}.settings-content{padding-left:14px;padding-right:14px}}
+
+
+/* ステータスバーから直近の診断ログを確認できるようにします。 */
+footer #status {
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: left;
+	background: transparent;
+	color: inherit;
+	font-size: inherit;
+	cursor: pointer;
+	--wails-draggable: no-drag;
+}
+footer #status:hover { background: transparent; color: var(--text); }
+#log-panel {
+	position: fixed;
+	z-index: 1700;
+	left: 56px;
+	right: 0;
+	bottom: 28px;
+	height: min(270px, 42vh);
+	display: flex;
+	flex-direction: column;
+	border-top: 1px solid var(--line);
+	background: color-mix(in srgb, var(--paper) 97%, transparent);
+	box-shadow: 0 -10px 30px #243a5018;
+	transform: translateY(calc(100% + 8px));
+	opacity: 0;
+	transition: transform 160ms ease, opacity 160ms ease;
+	--wails-draggable: no-drag;
+}
+#log-panel.open { transform: translateY(0); opacity: 1; }
+.log-panel-heading {
+	display: flex;
+	align-items: center;
+	min-height: 34px;
+	padding: 0 10px 0 16px;
+	border-bottom: 1px solid var(--line);
+	font-size: 11px;
+	color: var(--muted);
+}
+.log-panel-heading strong { color: var(--text); font-weight: 600; }
+#log-panel-close {
+	margin-left: auto;
+	width: 28px;
+	height: 26px;
+	padding: 0;
+	border: 0;
+	font-size: 18px;
+	line-height: 1;
+}
+#log-output {
+	flex: 1;
+	min-height: 0;
+	margin: 0;
+	padding: 10px 16px 14px;
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	user-select: text;
+	font: 11px/1.55 Consolas, "Yu Gothic UI", monospace;
+	color: var(--content-text, var(--text));
+	background: var(--paper);
+}
+@media (prefers-reduced-motion: reduce) {
+	#log-panel { transition: none; }
+}
