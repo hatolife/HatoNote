@@ -1,0 +1,36 @@
+name: One-shot Release Tag
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-release-tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove one-shot workflow and tag final commit
+        shell: bash
+        run: |
+          set -eu
+          git config user.name "hatolife"
+          git config user.email "poppo@hato.life"
+          git pull --ff-only origin main
+          git rm .github/workflows/tag-once.yml
+          git commit -m "chore: remove one-shot release tag workflow"
+          git push origin HEAD:main
+          TAG="v0.0.1.$(TZ=Asia/Tokyo date +%Y%m%d%H%M%S)"
+          git tag "$TAG" HEAD
+          git push origin "$TAG"
+          echo "Created $TAG at $(git rev-parse HEAD)"
