@@ -221,6 +221,81 @@ export function equivalentRenderedHTML(left: string, right: string): boolean {
 	return canonicalNode(a.body) === canonicalNode(b.body);
 }
 
+export interface RenderedHTMLDifference {
+	path: string;
+	reason: string;
+	before: string;
+	after: string;
+	tag: string;
+	text: string;
+}
+
+function diagnosticText(node: Node, preserveWhitespace: boolean): string {
+	const text = node.textContent || '';
+	const value = preserveWhitespace ? text : text.replace(/\s+/g, ' ').trim();
+	return value.length > 120 ? value.slice(0, 117) + '...' : value;
+}
+
+function diagnosticNode(node: Node): string {
+	if (node.nodeType === Node.TEXT_NODE) return JSON.stringify(diagnosticText(node, false));
+	if (!(node instanceof HTMLElement)) return node.nodeName;
+	const value = node.outerHTML.replace(/\s+/g, ' ').trim();
+	return value.length > 240 ? value.slice(0, 237) + '...' : value;
+}
+
+function diagnosticAttributes(node: HTMLElement): Map<string,string> {
+	const result = new Map<string,string>();
+	for (const name of ['href','src','title','start','align','type','checked','class','open','id','data-hatonote-citation','data-hatonote-source']) {
+		if (node.hasAttribute(name)) result.set(name, node.getAttribute(name) || '');
+	}
+	if (node.tagName.toLowerCase() === 'span') {
+		const style = [node.style.color ? `color:${node.style.color}` : '', node.style.fontSize ? `font-size:${node.style.fontSize}` : ''].filter(Boolean).join(';');
+		if (style) result.set('style', style);
+	}
+	return result;
+}
+
+function meaningfulDiagnosticChildren(node: Node, preserveWhitespace: boolean): Node[] {
+	return Array.from(node.childNodes).filter(child => canonicalNode(child, preserveWhitespace) !== '');
+}
+
+function renderedHTMLDifferenceNode(left: Node, right: Node, path: string, preserveWhitespace = false): RenderedHTMLDifference | null {
+	if (canonicalNode(left, preserveWhitespace) === canonicalNode(right, preserveWhitespace)) return null;
+	const leftElement = left instanceof HTMLElement ? left : null;
+	const rightElement = right instanceof HTMLElement ? right : null;
+	const leftTag = leftElement?.tagName.toLowerCase() || '#text';
+	const rightTag = rightElement?.tagName.toLowerCase() || '#text';
+	const text = diagnosticText(left, preserveWhitespace);
+	const difference = (reason: string): RenderedHTMLDifference => ({path, reason, before:diagnosticNode(left), after:diagnosticNode(right), tag:leftTag, text});
+	if (left.nodeType !== right.nodeType || leftTag !== rightTag) return difference(`要素が変化しました（${leftTag} → ${rightTag}）`);
+	if (!leftElement || !rightElement) return difference('テキストが変化しました');
+	const leftAttributes = diagnosticAttributes(leftElement);
+	const rightAttributes = diagnosticAttributes(rightElement);
+	for (const name of new Set([...leftAttributes.keys(), ...rightAttributes.keys()])) {
+		if (leftAttributes.get(name) !== rightAttributes.get(name)) return difference(`属性 ${name} が変化しました`);
+	}
+	const preserve = preserveWhitespace || leftTag === 'pre' || leftTag === 'code';
+	const leftChildren = meaningfulDiagnosticChildren(left, preserve);
+	const rightChildren = meaningfulDiagnosticChildren(right, preserve);
+	const count = Math.min(leftChildren.length, rightChildren.length);
+	for (let index = 0; index < count; index++) {
+		if (canonicalNode(leftChildren[index], preserve) === canonicalNode(rightChildren[index], preserve)) continue;
+		const child = leftChildren[index];
+		const label = child instanceof HTMLElement ? child.tagName.toLowerCase() : '#text';
+		const nested = renderedHTMLDifferenceNode(child, rightChildren[index], `${path} > ${label}[${index + 1}]`, preserve);
+		if (nested) return nested;
+	}
+	if (leftChildren.length !== rightChildren.length) return difference(`子要素数が変化しました（${leftChildren.length} → ${rightChildren.length}）`);
+	return difference('DOM構造が変化しました');
+}
+
+export function renderedHTMLDifference(left: string, right: string): RenderedHTMLDifference | null {
+	if (equivalentRenderedHTML(left, right)) return null;
+	const a = new DOMParser().parseFromString(left, 'text/html');
+	const b = new DOMParser().parseFromString(right, 'text/html');
+	return renderedHTMLDifferenceNode(a.body, b.body, 'body') || {path:'body', reason:'DOM構造が変化しました', before:diagnosticNode(a.body), after:diagnosticNode(b.body), tag:'body', text:diagnosticText(a.body, false)};
+}
+
 export function renderedHTMLHasOmittedRawHTML(html: string): boolean {
 	return /raw HTML omitted/i.test(html);
 }
