@@ -43,7 +43,7 @@ interface Backend {
 	Contents(): Promise<BookContents>; ChangeContents(revision: string, index: number, operation: string, value: string): Promise<BookContents>;
 	RenameBook(revision: string, title: string): Promise<void>; GetBookConfiguration(): Promise<{text: string; revision: string}>; SaveBookConfiguration(revision: string, text: string): Promise<void>;
 	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; NewBlankDocument(kind: string): Promise<boolean>; DocumentTemplates(): Promise<DocumentTemplate[]>; NewDocumentFromTemplate(templateID: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
-	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
+	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>; LogDiagnostic(message: string): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; MarkdownFolderInfo(path: string): Promise<MarkdownFolderInfo>; CreateMDZFromFolder(path: string): Promise<string>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; PageTemplates(): Promise<PageTemplate[]>; AddPageFromTemplate(name: string, templateID: string): Promise<void>; DuplicatePage(name: string): Promise<string>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>; UserTemplates(): Promise<UserTemplate[]>; SaveUserTemplate(template: UserTemplate): Promise<UserTemplate>; DeleteUserTemplate(id: string): Promise<void>;
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; Export(format: string): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>; RenderDiagram(kind:string, source:string): Promise<string>; RenderMath(source:string, display:boolean): Promise<string>; FormatMarkdown(text: string): Promise<string>; FormatNativeMarkdown(): Promise<void>; LintMarkdown(text: string): Promise<MarkdownDiagnostic[]>; LintNativeMarkdown(): Promise<MarkdownDiagnostic[]>; DocumentDiagnostics(): Promise<DocumentDiagnostic[]>;
@@ -562,12 +562,16 @@ function wysiwygSourceLine(markdown: string, difference: RenderedHTMLDifference)
 	}
 	return null;
 }
+function logFrontendDiagnostic(message: string): void {
+	console.warn(message);
+	void api.LogDiagnostic(message).catch(error => console.warn(`[HatoNote] 診断ログへ書き込めません: ${String(error)}`));
+}
 function reportWysiwygCompatibilityIssue(markdown: string, difference: RenderedHTMLDifference): void {
 	const source = wysiwygSourceLine(markdown, difference);
 	wysiwygCompatibilityIssue = `${source ? `${source.line}行目: ` : ''}${difference.reason}`;
 	const location = source ? `${current}:${source.line}` : current || '(現在ページ)';
 	const syntax = source?.text || difference.before;
-	console.warn(`[HatoNote][リッチ編集] 往復変換互換性エラー ${location}\n該当構文: ${syntax}\nDOM: ${difference.path}\n変換前: ${difference.before}\n変換後: ${difference.after}`);
+	logFrontendDiagnostic(`[リッチ編集] 往復変換互換性エラー ${location}\n該当構文: ${syntax}\nDOM: ${difference.path}\n変換前: ${difference.before}\n変換後: ${difference.after}`);
 }
 async function loadWysiwyg(): Promise<boolean> {
 	wysiwygCompatibilityIssue = '';
@@ -584,7 +588,7 @@ async function loadWysiwyg(): Promise<boolean> {
 		wysiwygCompatibilityIssue = 'Raw HTMLを安全に保持できません';
 		const source = editor.value.split(/\r?\n/).findIndex(line => /<\/?[A-Za-z][^>]*>/.test(line));
 		const syntax = source >= 0 ? `${source + 1}行目: ${editor.value.split(/\r?\n/)[source].trim().slice(0, 240)}` : 'Raw HTML';
-		console.warn(`[HatoNote][リッチ編集] 往復変換互換性エラー ${current || '(現在ページ)'}\n該当構文: ${syntax}`);
+		logFrontendDiagnostic(`[リッチ編集] 往復変換互換性エラー ${current || '(現在ページ)'}\n該当構文: ${syntax}`);
 		return false;
 	}
 	const normalized = markdownFromRenderedHTML(html);
