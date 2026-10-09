@@ -204,8 +204,17 @@ assert.equal((await rpc('Settings')).editor,'neovim');assert.equal((await rpc('S
 await page.locator('#editor-engine [data-engine=neovim]').click();
 await page.waitForFunction(()=>document.querySelector('#editor-engine [data-engine=neovim]').getAttribute('aria-pressed')==='true'&&!document.querySelector('#native-input').disabled,{},{timeout:20000});
 await page.waitForTimeout(600);await page.locator('#native-input').focus();
+// EDITOR-NVIM-013,014: Neovim編集中はHatoNoteのショートカットを起動しません。
+for(const key of ['Control+Shift+p','Control+p','Control+f','Control+/','Alt+ArrowLeft','Alt+ArrowRight']){
+	await page.keyboard.press(key);
+	for(const dialog of ['#command-palette-dialog','#quick-open-dialog','#search-dialog','#markdown-cheatsheet-dialog'])assert.equal(await page.locator(dialog).isVisible(),false,`${key} opened ${dialog}`);
+}
 await page.keyboard.type('gg0iNATIVE-');await page.keyboard.press('Escape');
 await page.waitForFunction(()=>document.querySelector('#editor').value.startsWith('NATIVE-'),{},{timeout:10000});
+// EDITOR-NVIM-014: Ctrl+SはNeovimに渡し、HatoNoteで保存しません。
+await page.keyboard.press('Control+s');
+await page.waitForTimeout(200);
+assert.equal(await page.locator('#save').evaluate(element=>element.classList.contains('unsaved')),true);
 await page.keyboard.type('u');await page.waitForFunction(()=>!document.querySelector('#editor').value.startsWith('NATIVE-'));
 await page.keyboard.press('Control+r');await page.waitForFunction(()=>document.querySelector('#editor').value.startsWith('NATIVE-'));
 await pasteImage('#native-input');await page.waitForFunction(()=>document.querySelector('#editor').value.includes('capture-002.png'));
@@ -215,6 +224,10 @@ await page.locator('#native-input').focus();await page.keyboard.press('Escape');
 await page.waitForFunction(()=>document.querySelector('#status').textContent==='保存しました');
 await page.waitForTimeout(500);await page.screenshot({path:path.join(output, 'integrated-native.png')});
 await page.locator('#editor-engine [data-engine=builtin]').click();await page.waitForFunction(()=>document.querySelector('#editor-engine [data-engine=builtin]').getAttribute('aria-pressed')==='true'&&!document.querySelector('#editor').hidden);assert.equal((await rpc('State')).engine,'builtin');
+// EDITOR-NVIM-016: 通常エディターに戻したらショートカットを再度使用できます。
+await page.locator('#editor').focus();await page.keyboard.press('Control+Shift+p');
+await page.locator('#command-palette-dialog').waitFor({state:'visible'});
+await page.keyboard.press('Escape');await page.locator('#command-palette-dialog').waitFor({state:'hidden'});
 await page.locator('#editor-engine [data-engine=neovim]').click();await page.waitForFunction(()=>document.querySelector('#editor-engine [data-engine=neovim]').getAttribute('aria-pressed')==='true'&&!document.querySelector('#native-input').disabled,{},{timeout:20000});
 await page.locator('#settings').click();await page.locator('[name=autoSave]').check();await page.locator('[name=autoSaveSeconds]').fill('5');await page.locator('[name=backupGenerations]').fill('2');await page.locator('#settings-save').click();
 await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open&&!document.querySelector('#native-input').disabled);
