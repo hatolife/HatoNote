@@ -1470,8 +1470,10 @@ async function convertDocumentType(target: 'slides' | 'mdz'): Promise<void> {
 }
 element('document-to-slides').onclick = () => runCommand('document.convertToSlides');
 element('slides-to-document').onclick = () => runCommand('document.convertToMDZ');
+// Neovim編集中はキー操作をHatoNoteのショートカットとして処理しない。
+function neovimOwnsKeyboard(): boolean { return editing && activeEngine === 'neovim'; }
 window.addEventListener('keydown', event => {
-	if (!(event.ctrlKey || event.metaKey)) return;
+	if (neovimOwnsKeyboard() || !(event.ctrlKey || event.metaKey)) return;
 	const key = event.key.toLowerCase();
 	if (key === 'p' && event.shiftKey && !activeAppDialog?.open) { event.preventDefault(); showCommandPalette(); return; }
 	if (key === 'p' && !event.shiftKey && state?.capabilities.multiplePages && !activeAppDialog?.open) { event.preventDefault(); runCommand('navigation.quickOpen'); return; }
@@ -1483,7 +1485,7 @@ window.addEventListener('keydown', event => {
 	if (state?.engine === 'builtin' && ['z','y'].includes(key) && localEditor) { event.preventDefault(); undo(event.shiftKey || key === 'y'); }
 });
 window.addEventListener('keydown', event => {
-	if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || activeAppDialog?.open) return;
+	if (neovimOwnsKeyboard() || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || activeAppDialog?.open) return;
 	if (event.key === 'ArrowLeft') { event.preventDefault(); runCommand('navigation.back'); }
 	else if (event.key === 'ArrowRight') { event.preventDefault(); runCommand('navigation.forward'); }
 });
