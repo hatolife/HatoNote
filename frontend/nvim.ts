@@ -128,8 +128,8 @@ export class NativeView {
 	private literal(text: string): void { this.transport.input(text.replaceAll('<', '<LT>')); }
 	private key(event: KeyboardEvent): void {
 		if (event.isComposing || this.composing || event.keyCode === 229) return;
-		// アプリ操作とクリップボード処理は外側へ渡します。
-		if ((event.ctrlKey || event.metaKey) && ['s', 'v'].includes(event.key.toLowerCase())) return;
+		// クリップボードの貼り付けだけは既存のpasteイベントで処理します。
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') return;
 		const names: Record<string, string> = { Escape: 'Esc', Enter: 'CR', Backspace: 'BS', Delete: 'Del', Tab: 'Tab', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown', Insert: 'Insert', ' ': 'Space' };
 		const special = names[event.key] || (/^F\d+$/.test(event.key) ? event.key : '');
 		if (special || ((event.ctrlKey || event.altKey || event.metaKey) && !event.getModifierState('AltGraph') && event.key.length === 1)) {
