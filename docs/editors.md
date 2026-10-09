@@ -62,3 +62,7 @@
 - EDITOR-NVIM-010: Neovimの設定読み込みエラーによる入力待ち状態が発生してもHatoNote全体を操作不能にしない。
 - EDITOR-NVIM-011: Neovimが設定エラーまたはプロセス異常で継続利用できない場合は、作業ファイルへ保存できる内容を保持して内蔵エディターへ切り替える。
 - EDITOR-NVIM-012: Neovimから内蔵エディターへ自動切替した場合は、原因をユーザーへ表示する。
+- EDITOR-NVIM-013: 編集中の編集エンジンが `neovim` の場合は、HatoNoteのグローバルキーボードショートカットを実行しない。
+- EDITOR-NVIM-014: Neovimの入力欄で押したキーは、HatoNoteのショートカットに横取りされずNeovimへ渡す。
+- EDITOR-NVIM-015: Neovimの入力欄で `Ctrl+V` または `Cmd+V` を押した場合は、既存のクリップボード貼り付け処理を利用できる。
+- EDITOR-NVIM-016: `builtin` または `wysiwyg` へ切り替えた場合は、HatoNoteのグローバルキーボードショートカットを再び利用できる。
