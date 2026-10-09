@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const html = fs.readFileSync('dist/index.html', 'utf8');
 const app = fs.readFileSync('app.ts', 'utf8');
+const nvim = fs.readFileSync('nvim.ts', 'utf8');
 const audience = fs.readFileSync('audience.ts', 'utf8');
 const audienceHTML = fs.readFileSync('dist/audience.html', 'utf8');
 const style = fs.readFileSync('dist/style.css', 'utf8');
@@ -125,6 +126,12 @@ for (const [engine, command] of [
 	assert(app.includes(`${engine}:'${command}'`), `editor engine ${engine} bypasses command ${command}`);
 }
 assert.match(app, /button\.onclick\s*=\s*\(\)\s*=>\s*runCommand\(editorEngineCommands\[button\.dataset\.engine as EditorEngine\]\)/, 'editor engine button bypasses command registry');
+
+// EDITOR-NVIM-013〜016: Neovim編集中にアプリのグローバルショートカットがキーを横取りしないことを固定します。
+assert(app.includes("function neovimOwnsKeyboard(): boolean { return editing && activeEngine === 'neovim'; }"), 'Neovim shortcut guard is missing');
+assert(app.includes("if (neovimOwnsKeyboard() || !(event.ctrlKey || event.metaKey)) return;"), 'Ctrl/Cmd shortcuts are not disabled in Neovim');
+assert(app.includes("if (neovimOwnsKeyboard() || !event.altKey"), 'Alt shortcuts are not disabled in Neovim');
+assert(nvim.includes("(event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v'"), 'Neovim is still yielding non-paste shortcuts to the app');
 
 // SCR-PRESENT-008 / SCR-PRESENTER-037: 全画面表示ではアプリ側・投影側ともタイトルバーを残さないことを固定します。
 assert(app.includes("document.body.classList.add('presentation-active')"), 'presentation does not enter titlebar-hidden state');
